@@ -1,59 +1,32 @@
-export { default } from "next-auth/middleware"
-
-
-
-import { getToken } from "next-auth/jwt";
+// middleware.ts (at project root)
 import { NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
-import { superAdmin } from "./lib/constants";
+
+const SUPER_EMAIL = "superadmin12@gmail.com";
 
 export async function middleware(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET, 
-    //  secureCookie: true
-   });
-  const pathname = req.nextUrl.pathname;
-// console.log('token', token)
-  // If not logged in, redirect to sign-in
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
   if (!token) {
-    const signInUrl = new URL("/", req.url);
-    return NextResponse.redirect(signInUrl);
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // Extract allowed pages from token
-  const pages:any = token.pages || [];
-  const isAllowed = token.role === superAdmin || pathname=='/dashboard' || pages?.some((page: any) => pathname.startsWith(page.path));
+  const isSuperAdmin = token.email === SUPER_EMAIL && token.role === "superadmin";
 
-  if (isAllowed) {
-    return NextResponse.next();
+  const path = req.nextUrl.pathname;
+  const protectedRoutes = ["/dashboard", "/manage-students", "/assign-permissions"];
+  const needsGuard = protectedRoutes.some((p) => path.startsWith(p));
+
+  if (needsGuard && !isSuperAdmin) {
+    const url = new URL("/", req.url);
+    url.searchParams.set("unauthorized", "true");
+    return NextResponse.redirect(url);
   }
 
-  // Not allowed — redirect to unauthorized or home
-  const unauthorizedUrl = new URL("/dashboard", req.url); // create this page if needed
-  unauthorizedUrl.searchParams.set("unauthorized", "true");
-  return NextResponse.redirect(unauthorizedUrl);
+  return NextResponse.next();
 }
 
-// 👇 Define protected routes here
 export const config = {
-  matcher: [
-  "/manage-students/:path*",
-  "/assign-permissions/:path*",
-
-]
-
-  // matcher: [
-  //   "/dashboard/:path*",
-  //   "/admissions/:path*",
-  //   "/admission-fee-process/:path*",
-  //   "/change-password/:path*",
-  //   // "/manage-pages/:path*",
-  //   // "/manage-users/:path*",
-  //   // "/manage-roles/:path*",
-  //   // "/manage-permissions/:path*",
-  //   // "/manage-actions/:path*",
-  //   // "/assign-permissions/:path*",
-  //   // "/manage-programs/:path*",
-  //   // "/settings/:path*",
-  //   // "/api/private/:path*"
-  // ]
+  matcher: ["/dashboard/:path*", "/manage-students/:path*", "/assign-permissions/:path*"],
 };
