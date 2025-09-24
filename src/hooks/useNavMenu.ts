@@ -5,10 +5,8 @@ import {
   Gauge,
   Settings2,
   Users,
-  BookOpen,
-  ClipboardList,
-  CalendarDays,
-  Briefcase, // 👈 added for Careers
+  Briefcase,
+  Trophy,            // 👈 add
 } from "lucide-react";
 
 type NavItem = {
@@ -36,7 +34,6 @@ export const navMain: NavItem[] = [
     ],
   },
 
-  // 👇 New Careers section
   {
     title: "Careers",
     url: "#",
@@ -47,8 +44,29 @@ export const navMain: NavItem[] = [
       { title: "Add New", url: "/careers/add", isActive: true },
     ],
   },
+
+  {
+    title: "Management Team",
+    url: "#",
+    icon: Users,
+    isActive: true,
+    items: [
+      { title: "View", url: "/management-team/view", isActive: true },
+      { title: "Add Team", url: "/management-team/add", isActive: true },
+    ],
+  },
+
+  // ✅ NEW
+  {
+    title: "Achievements",
+    url: "#",
+    icon: Trophy,
+    isActive: true,
+    items: [
+      { title: "View", url: "/achievements/view", isActive: true },
+      { title: "Add Achievement", url: "/achievements/add", isActive: true },
+    ],
+  },
 ];
 
-export const useNavMenu = () => {
-  return useMemo(() => navMain, []);
-};
+export const useNavMenu = () => useMemo(() => navMain, []);
