@@ -1,0 +1,365 @@
+// D:\portal\src\app\(dashboard)\consultants\categories\page.tsx
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { notify } from "@/components/ui/notify";
+import { useConfirm } from "@/components/ui/confirm-provider";
+
+type Row = {
+  id: number;
+  cat_name: string;
+  main_cat_id: number | null;
+  main_cat_name: string | null;
+};
+type MainCat = { id: number; cat_name: string };
+
+export default function ConsultantCategoriesPage() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const [editing, setEditing] = useState<Row | null>(null);
+  const [mains, setMains] = useState<MainCat[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const confirm = useConfirm();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/consultants/main-categories", { cache: "no-store" });
+        const j = await r.json();
+        setMains(Array.isArray(j?.data) ? j.data : []);
+      } catch {
+        setMains([]);
+        notify.error("Failed to load main categories.");
+      }
+    })();
+  }, []);
+
+  async function reload() {
+    try {
+      const r = await fetch(
+        `/api/consultants/categories?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(
+          search
+        )}`,
+        { cache: "no-store" }
+      );
+      const j = await r.json();
+      setRows(Array.isArray(j?.data) ? j.data : []);
+      setTotal(Number(j?.total || 0));
+    } catch {
+      setRows([]);
+      setTotal(0);
+      notify.error("Failed to load categories.");
+    }
+  }
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      setLoading(true);
+      await reload();
+      setLoading(false);
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, search]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageNumbers = useMemo(() => {
+    const max = totalPages;
+    const current = page;
+    const span = 2;
+    const start = Math.max(1, current - span);
+    const end = Math.min(max, current + span);
+    const out: number[] = [];
+    for (let i = start; i <= end; i++) out.push(i);
+    return out;
+  }, [page, totalPages]);
+
+  function openEdit(row: Row) { setEditing(row); }
+  function closeEdit() { setEditing(null); }
+
+  // -------- Robust updater (JSON first; then overrides; last-resort urlencoded) --------
+  async function updateCategory(id: number, data: { cat_name: string; main_cat_id: number }) {
+    const jsonBody = JSON.stringify({ id, ...data });
+
+    const send = async (method: string, url: string, headers: Record<string, string>, body: BodyInit) => {
+      const res = await fetch(url, { method, headers, body });
+      const ct = res.headers.get("content-type") || "";
+      const payload = ct.includes("application/json")
+        ? await res.json().catch(() => ({}))
+        : await res.text().catch(() => "");
+      if (!res.ok) {
+        const msg =
+          (typeof payload === "object" && payload && (payload.error || payload.message)) ||
+          (typeof payload === "string" && payload) ||
+          `HTTP ${res.status}`;
+        const err: any = new Error(msg);
+        err.status = res.status;
+        throw err;
+      }
+      return payload;
+    };
+
+    // 1) PATCH JSON /:id (modern/Next handlers)
+    try {
+      return await send("PATCH", `/api/consultants/categories/${id}`, { "Content-Type": "application/json" }, jsonBody);
+    } catch (e: any) {
+      if (e?.status !== 404 && e?.status !== 405) throw e;
+    }
+
+    // 2) PUT JSON /:id
+    try {
+      return await send("PUT", `/api/consultants/categories/${id}`, { "Content-Type": "application/json" }, jsonBody);
+    } catch (e: any) {
+      if (e?.status !== 404 && e?.status !== 405) throw e;
+    }
+
+    // 3) POST JSON + override (common PHP/Laravel/Koa middlewares)
+    try {
+      return await send(
+        "POST",
+        `/api/consultants/categories`,
+        { "Content-Type": "application/json", "X-HTTP-Method-Override": "PATCH" },
+        jsonBody
+      );
+    } catch (e: any) {
+      if (e?.status !== 404 && e?.status !== 405) throw e;
+    }
+
+    // 4) POST JSON /:id (some custom routers)
+    try {
+      return await send(
+        "POST",
+        `/api/consultants/categories/${id}`,
+        { "Content-Type": "application/json", "X-HTTP-Method-Override": "PATCH" },
+        jsonBody
+      );
+    } catch (e: any) {
+      if (e?.status !== 404 && e?.status !== 405) throw e;
+    }
+
+    // 5) LAST RESORT: urlencoded + override
+    const form = new URLSearchParams();
+    form.set("id", String(id));
+    form.set("cat_name", data.cat_name);
+    form.set("main_cat_id", String(data.main_cat_id));
+    return await send(
+      "POST",
+      `/api/consultants/categories?id=${encodeURIComponent(String(id))}`,
+      { "Content-Type": "application/x-www-form-urlencoded", "X-HTTP-Method-Override": "PATCH" },
+      form
+    );
+  }
+  // ----------------------------------------------------------------------
+
+  async function saveEdit() {
+    if (!editing) return;
+
+    const name = String(editing.cat_name || "").trim();
+    const mainId =
+      editing.main_cat_id == null || Number.isNaN(editing.main_cat_id as any)
+        ? null
+        : Number(editing.main_cat_id);
+
+    if (!name) {
+      notify.error("Category name is required.");
+      return;
+    }
+    if (mainId == null) {
+      notify.error("Please select a Main Category.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await notify.promise(
+        updateCategory(editing.id, { cat_name: name, main_cat_id: mainId }),
+        {
+          loading: "Saving category…",
+          success: "Category updated.",
+          error: (e) => (e as Error)?.message || "Could not save.",
+        }
+      );
+      closeEdit();
+      await reload();
+    } catch (e: any) {
+      notify.error(e?.message || "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function del(id: number) {
+    const ok = await confirm({
+      title: "Delete this category?",
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      dangerous: true,
+    });
+    if (!ok) return;
+
+    try {
+      await notify.promise(
+        (async () => {
+          const res = await fetch(`/api/consultants/categories/${id}`, { method: "DELETE" });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(j?.error || `Failed (HTTP ${res.status})`);
+          return true;
+        })(),
+        {
+          loading: "Deleting…",
+          success: "Category deleted.",
+          error: (e) => (e as Error)?.message || "Could not delete.",
+        }
+      );
+      setRows((r) => r.filter((x) => x.id !== id));
+      setTotal((t) => Math.max(0, t - 1));
+    } catch (e: any) {
+      notify.error(e?.message || "Could not delete.");
+    }
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="mb-4 text-2xl font-semibold">View Consultant Departments</h1>
+
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm">
+            <span>Show</span>
+            <select
+              className="rounded-md border px-2 py-1"
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+            >
+              {[10, 25, 50, 100].map((n) => (<option key={n} value={n}>{n}</option>))}
+            </select>
+            <span>entries</span>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm">
+            <span>Search:</span>
+            <input
+              className="w-60 rounded-md border px-2 py-1"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-100 text-left text-sm">
+                <th className="border px-3 py-2 w-16">ID</th>
+                <th className="border px-3 py-2">Category Name</th>
+                <th className="border px-3 py-2">Main Category Name</th>
+                <th className="border px-3 py-2 w-32 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={4} className="border px-3 py-6 text-center text-sm">Loading…</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={4} className="border px-3 py-6 text-center text-sm">No records</td></tr>
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id} className="odd:bg-white even:bg-gray-50">
+                    <td className="border px-3 py-2 text-sm">{r.id}</td>
+                    <td className="border px-3 py-2 text-sm">{r.cat_name}</td>
+                    <td className="border px-3 py-2 text-sm">{r.main_cat_name ?? ""}</td>
+                    <td className="border px-3 py-2 text-center">
+                      <button
+                        onClick={() => openEdit(r)}
+                        className="mr-2 inline-flex items-center rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
+                        title="Edit"
+                      >✓</button>
+                      <button
+                        onClick={() => del(r.id)}
+                        className="inline-flex items-center rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                        title="Delete"
+                      >🗑</button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between text-sm">
+          <div>
+            Showing {rows.length ? (page - 1) * pageSize + 1 : 0} to {Math.min(page * pageSize, total)} of {total} entries
+          </div>
+          <div className="flex items-center gap-1">
+            <button className="rounded-md border px-2 py-1 hover:bg-gray-50 disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</button>
+            {pageNumbers[0] > 1 && (<><PageBtn n={1} active={page === 1} onClick={() => setPage(1)} /><span className="px-1">…</span></>)}
+            {pageNumbers.map((n) => (<PageBtn key={n} n={n} active={page === n} onClick={() => setPage(n)} />))}
+            {pageNumbers[pageNumbers.length - 1] < totalPages && (<><span className="px-1">…</span><PageBtn n={totalPages} active={page === totalPages} onClick={() => setPage(totalPages)} /></>)}
+            <button className="rounded-md border px-2 py-1 hover:bg-gray-50 disabled:opacity-50" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</button>
+          </div>
+        </div>
+      </div>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
+            <div className="mb-3 text-lg font-semibold">Edit Category</div>
+
+            <div className="mb-3">
+              <label className="mb-1 block text-sm font-medium">Category Name</label>
+              <input
+                className="w-full rounded-md border px-3 py-2"
+                value={editing.cat_name}
+                onChange={(e) => setEditing({ ...editing, cat_name: e.target.value })}
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">Main Category</label>
+              <select
+                className="w-full rounded-md border px-3 py-2 bg-white"
+                value={editing.main_cat_id ?? ""}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    main_cat_id: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+              >
+                <option value="" disabled>Select…</option>
+                {mains.map((m) => (
+                  <option key={m.id} value={m.id}>{m.cat_name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={closeEdit} className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50" disabled={saving}>Cancel</button>
+              <button onClick={saveEdit} className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60" disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PageBtn({ n, active, onClick }: { n: number; active?: boolean; onClick: () => void; }) {
+  return (
+    <button
+      className={`min-w-[2rem] rounded-md border px-2 py-1 ${active ? "bg-lime-600 text-white border-lime-600" : "hover:bg-gray-50"}`}
+      onClick={onClick}
+    >
+      {n}
+    </button>
+  );
+}

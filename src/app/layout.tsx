@@ -1,51 +1,36 @@
 import type { Metadata } from "next";
-// import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import QueryProvider from "@/providers/QueryProvider";
 import AuthProvider from "@/providers/AuthProvider";
 import Loader from "@/components/common/Loader";
 import { Toaster } from "sonner";
-// import { ThemeProvider } from "@/providers/ThemeProvider";
-///
-// const geistSans = Geist({
-//   variable: "--font-geist-sans",
-//   subsets: ["latin"],
-// });
 
-// const geistMono = Geist_Mono({
-//   variable: "--font-geist-mono",
-//   subsets: ["latin"],
-// });
+// ✅ add this
+import { ConfirmProvider } from "@/components/ui/confirm-provider";
 
 export const metadata: Metadata = {
-  title: "BINC Portal",
+  title: "Buch Hospital Portal",
   description: "A Full Fledge Web Application",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body
-      // className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body>
         <AuthProvider>
           <QueryProvider>
-            {/* <ThemeProvider
-             attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-            > */}
-            <Loader />
-            {children}
-            {/* </ThemeProvider> */}
+            {/* Provide confirm modal context app-wide */}
+            <ConfirmProvider>
+              <Loader />
+              {children}
+            </ConfirmProvider>
           </QueryProvider>
         </AuthProvider>
-        <Toaster position="top-right" />
+
+        {/* Global toast notifications */}
+        <Toaster richColors closeButton position="top-right" />
       </body>
     </html>
   );
