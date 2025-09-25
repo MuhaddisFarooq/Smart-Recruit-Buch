@@ -1,16 +1,16 @@
+// src/app/api/consultants/categories/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-/* ------------------------------ GET (unchanged except: include cat_img in legacy mode) ------------------------------ */
+/* ------------------------------ GET ------------------------------ */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
 
     const mainIdRaw = searchParams.get("main_id");
     const mainName  = searchParams.get("main");
-
     const hasPagingSignals =
       searchParams.has("page") || searchParams.has("pageSize") || searchParams.has("search");
 
@@ -26,11 +26,17 @@ export async function GET(req: NextRequest) {
       mainId = rows[0]?.id ?? null;
     }
 
-    // Legacy mode: return all subs for a given main (now includes cat_img)
+    // Legacy mode: return all subs for a given main
     if (mainId !== null && !hasPagingSignals) {
-      const rows = await query<{ id: number; cat_name: string; main_cat_id: number; cat_img: string | null }>(
+      const rows = await query<{
+        id: number;
+        cat_name: string;
+        main_cat_id: number;
+        cat_img: string | null;
+        cat_description: string | null;
+      }>(
         `
-        SELECT id, cat_name, main_cat_id, cat_img
+        SELECT id, cat_name, main_cat_id, cat_img, cat_description
         FROM consultant_category
         WHERE main_cat_id = ?
         ORDER BY id ASC
@@ -40,7 +46,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ data: rows });
     }
 
-    // Listing mode (kept as-is)
+    // Listing mode with pagination
     const page = Math.max(1, Number(searchParams.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") || 10)));
     const search = (searchParams.get("search") || "").trim();
@@ -53,8 +59,8 @@ export async function GET(req: NextRequest) {
       params.push(mainId);
     }
     if (search) {
-      where.push("(c.cat_name LIKE ? OR m.cat_name LIKE ?)");
-      params.push(`%${search}%`, `%${search}%`);
+      where.push("(c.cat_name LIKE ? OR m.cat_name LIKE ? OR c.cat_description LIKE ?)");
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
@@ -74,12 +80,14 @@ export async function GET(req: NextRequest) {
       cat_name: string;
       main_cat_id: number | null;
       main_cat_name: string | null;
+      cat_description: string | null;
     }>(
       `
       SELECT
         c.id,
         c.cat_name,
         c.main_cat_id,
+        c.cat_description,
         m.cat_name AS main_cat_name
       FROM consultant_category c
       LEFT JOIN consultant_main_category m ON m.id = c.main_cat_id
@@ -97,16 +105,19 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/* ------------------------------ POST (create; now supports cat_img) ------------------------------ */
+/* ------------------------------ POST (create) ------------------------------ */
 export async function POST(req: NextRequest) {
   try {
-    // try JSON; if not, gracefully empty
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    const cat_name    = String(body?.cat_name || "").trim();
-    const main_cat_id = Number(body?.main_cat_id);
-    const rawImg      = body?.cat_img;
-    const cat_img =
-      rawImg == null || rawImg === "" ? null : String(rawImg).trim();
+
+    const cat_name        = String(body?.cat_name || "").trim();
+    const main_cat_id_raw = body?.main_cat_id;
+    const main_cat_id     = Number(main_cat_id_raw);
+    const rawImg          = body?.cat_img;
+    const cat_img         = rawImg == null || rawImg === "" ? null : String(rawImg).trim();
+
+    const cat_description_raw = body?.cat_description ?? body?.description;
+    const cat_description     = cat_description_raw == null ? null : String(cat_description_raw).trim();
 
     if (!cat_name || !Number.isInteger(main_cat_id)) {
       return NextResponse.json(
@@ -115,10 +126,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Insert, storing cat_img if provided (nullable)
     await query(
-      "INSERT INTO consultant_category (cat_name, main_cat_id, cat_img) VALUES (?, ?, ?)",
-      [cat_name, main_cat_id, cat_img]
+      "INSERT INTO consultant_category (cat_name, main_cat_id, cat_img, cat_description) VALUES (?, ?, ?, ?)",
+      [cat_name, main_cat_id, cat_img, cat_description]
     );
 
     return NextResponse.json({ ok: true });

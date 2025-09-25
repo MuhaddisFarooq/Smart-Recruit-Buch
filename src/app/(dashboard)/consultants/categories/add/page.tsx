@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button";
 import { notify } from "@/components/ui/notify";
 
 type MainCat = { id: number; cat_name: string };
-type SubCat  = { id: number; cat_name: string; main_cat_id: number };
+type SubCat = { id: number; cat_name: string; main_cat_id: number };
 
 export default function AddConsultantCategoryPage() {
-  const [mainCats, setMainCats]   = useState<MainCat[]>([]);
-  const [mainId, setMainId]       = useState<number | "">("");
-  const [sub, setSub]             = useState("");
-  const [subCats, setSubCats]     = useState<SubCat[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
+  const [mainCats, setMainCats] = useState<MainCat[]>([]);
+  const [mainId, setMainId] = useState<number | "">("");
+  const [sub, setSub] = useState("");
+  const [description, setDescription] = useState(""); // ✅ NEW
+  const [subCats, setSubCats] = useState<SubCat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // image state
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -28,10 +29,9 @@ export default function AddConsultantCategoryPage() {
   async function compressToTarget(
     file: File,
     maxSideStart = 1200,
-    targetKB = 300,          // ~300 KB target to ensure "in KB"
+    targetKB = 300,
     minSide = 600
   ): Promise<Blob> {
-    // load image
     const dataURL: string = await new Promise((res, rej) => {
       const r = new FileReader();
       r.onload = () => res(String(r.result));
@@ -62,10 +62,10 @@ export default function AddConsultantCategoryPage() {
       );
     };
 
-    // iteratively reduce until <= targetKB
     let blob = await draw();
     while (blob.size > targetKB * 1024 && (quality > 0.5 || maxSide > minSide)) {
-      if (quality > 0.55) quality -= 0.07; else maxSide = Math.max(minSide, maxSide - 100);
+      if (quality > 0.55) quality -= 0.07;
+      else maxSide = Math.max(minSide, maxSide - 100);
       blob = await draw();
     }
     return blob;
@@ -80,8 +80,7 @@ export default function AddConsultantCategoryPage() {
     const r = await fetch("/api/uploads?folder=categories", { method: "POST", body: fd });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j?.error || `Upload failed (HTTP ${r.status})`);
-    // returns { ok, filename: "categories/<name>", url: "/uploads/categories/<name>" }
-    return String(j?.filename || "");
+    return String(j?.filename || ""); // "categories/<file>"
   }
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -92,7 +91,7 @@ export default function AddConsultantCategoryPage() {
 
     try {
       setUploading(true);
-      const compressed = await compressToTarget(f, 1200, 300, 600); // ~300KB, min side 600px
+      const compressed = await compressToTarget(f, 1200, 300, 600);
       setPreview(URL.createObjectURL(compressed));
       const stored = await uploadBlobToCategories(compressed, f.name);
       setUploadedFilename(stored); // "categories/<filename>"
@@ -127,7 +126,7 @@ export default function AddConsultantCategoryPage() {
     })();
   }, []);
 
-  // load subs when a main is selected (by id)
+  // load subs when a main is selected
   useEffect(() => {
     if (!mainId || typeof mainId !== "number") {
       setSubCats([]);
@@ -135,7 +134,9 @@ export default function AddConsultantCategoryPage() {
     }
     (async () => {
       try {
-        const res = await fetch(`/api/consultants/categories?main_id=${mainId}`, { cache: "no-store" });
+        const res = await fetch(`/api/consultants/categories?main_id=${mainId}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j = await res.json();
         setSubCats(Array.isArray(j?.data) ? j.data : []);
@@ -157,7 +158,7 @@ export default function AddConsultantCategoryPage() {
       notify.error("Please enter a Sub Category Name.");
       return;
     }
-    if (subCats.some(s => s.cat_name.toLowerCase() === subNormalized.toLowerCase())) {
+    if (subCats.some((s) => s.cat_name.toLowerCase() === subNormalized.toLowerCase())) {
       notify.error("That sub category already exists under the selected main category.");
       return;
     }
@@ -171,8 +172,8 @@ export default function AddConsultantCategoryPage() {
           body: JSON.stringify({
             main_cat_id: mainId,
             cat_name: subNormalized,
-            // optional: value like "categories/<file>"
             cat_img: uploadedFilename || null,
+            cat_description: description || null, // ✅ NEW
           }),
         });
         const j = await res.json().catch(() => ({}));
@@ -180,16 +181,15 @@ export default function AddConsultantCategoryPage() {
         return true;
       })();
 
-      notify.promise(task, {
+      await notify.promise(task, {
         loading: "Saving sub category…",
         success: "Sub category saved.",
         error: (e) => (e as Error)?.message || "Could not save sub category.",
       });
 
-      await task;
-
       // reset
       setSub("");
+      setDescription(""); // ✅ NEW
       setPreview(null);
       setUploadedFilename("");
       if (fileRef.current) fileRef.current.value = "";
@@ -244,14 +244,28 @@ export default function AddConsultantCategoryPage() {
           </div>
         </div>
 
-        {/* Optional image upload to /uploads/categories */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Description + Image */}
+        <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* ✅ NEW: Description */}
           <div className="space-y-2">
             <label className="mb-1 block text-sm font-medium">
-              Category Image <span className="text-gray-500">(optional)</span>
+              Category Description <span className="text-gray-500">(optional)</span>
+            </label>
+            <textarea
+              className="w-full min-h-[100px] rounded-md border px-3 py-2 text-sm"
+              placeholder="Write a short description for this category…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          {/* Existing image upload */}
+          <div className="space-y-2">
+            <label className="mb-1 block text-sm font-medium">
+              Category Image <span className="text-gray-500"></span>
             </label>
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 overflow-hidden rounded-md border bg-gray-50 flex items-center justify-center">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border bg-gray-50">
                 {preview ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={preview} alt="preview" className="h-16 w-16 object-cover" />
@@ -275,7 +289,7 @@ export default function AddConsultantCategoryPage() {
               </Button>
               {uploading && <span className="text-xs text-gray-500">Uploading…</span>}
               {!!uploadedFilename && (
-                <span className="text-xs text-gray-600 break-all">{uploadedFilename}</span>
+                <span className="break-all text-xs text-gray-600">{uploadedFilename}</span>
               )}
             </div>
           </div>
@@ -285,7 +299,7 @@ export default function AddConsultantCategoryPage() {
           <Button
             type="submit"
             disabled={!mainId || !subNormalized || saving}
-            className="bg-[#c8e967] text-black hover:bg-[#b9db58] disabled:opacity-60 disabled:pointer-events-none"
+            className="bg-[#c8e967] text-black hover:bg-[#b9db58] disabled:pointer-events-none disabled:opacity-60"
           >
             {saving ? "Saving..." : "Submit"}
           </Button>

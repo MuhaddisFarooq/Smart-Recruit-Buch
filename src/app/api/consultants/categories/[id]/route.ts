@@ -4,7 +4,6 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-/** Read JSON or form bodies safely */
 async function readBody(req: NextRequest) {
   const ct = (req.headers.get("content-type") || "").toLowerCase();
   if (ct.includes("application/json")) {
@@ -17,7 +16,7 @@ async function readBody(req: NextRequest) {
   try { return await req.json(); } catch { return {}; }
 }
 
-/** GET one sub-category */
+/** GET one sub-category (with description) */
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id);
@@ -28,9 +27,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       cat_name: string;
       main_cat_id: number | null;
       main_cat_name: string | null;
+      cat_description: string | null;
     }>(
       `
-      SELECT c.id, c.cat_name, c.main_cat_id, m.cat_name AS main_cat_name
+      SELECT c.id, c.cat_name, c.main_cat_id, c.cat_description, m.cat_name AS main_cat_name
       FROM consultant_category c
       LEFT JOIN consultant_main_category m ON m.id = c.main_cat_id
       WHERE c.id = ?
@@ -47,7 +47,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-/** PATCH/PUT: update cat_name and/or main_cat_id for a sub-category */
+/** PATCH/PUT: update sub-category (name/main/description) */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id);
@@ -55,8 +55,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const b: any = await readBody(req);
 
-    const catNameRaw = b.cat_name ?? b.name;
-    const mainRaw = b.main_cat_id ?? b.mainCatId ?? b.main_id ?? b.mainCategoryId;
+    const catNameRaw   = b.cat_name ?? b.name;
+    const mainRaw      = b.main_cat_id ?? b.mainCatId ?? b.main_id ?? b.mainCategoryId;
+    const descRaw      = b.cat_description ?? b.description;
 
     const sets: string[] = [];
     const args: any[] = [];
@@ -77,12 +78,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       args.push(mainId);
     }
 
+    if (descRaw !== undefined) {
+      const desc = descRaw == null ? null : String(descRaw).trim();
+      sets.push("cat_description = ?");
+      args.push(desc);
+    }
+
     if (!sets.length) return NextResponse.json({ ok: true, message: "nothing to update" });
 
     await query(`UPDATE consultant_category SET ${sets.join(", ")} WHERE id = ?`, [...args, id]);
 
-    const after = await query<{ id: number; cat_name: string; main_cat_id: number | null }>(
-      "SELECT id, cat_name, main_cat_id FROM consultant_category WHERE id = ? LIMIT 1",
+    const after = await query<{ id: number; cat_name: string; main_cat_id: number | null; cat_description: string | null }>(
+      "SELECT id, cat_name, main_cat_id, cat_description FROM consultant_category WHERE id = ? LIMIT 1",
       [id]
     );
 
@@ -94,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 export const PUT = PATCH;
 
-/** DELETE a sub-category */
+/** DELETE */
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id);
@@ -104,7 +111,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("[categories/[id]:DELETE] DB error:", err);
-    // If there is a FK constraint, return a friendly 409
     const code = err?.code || err?.errno;
     const isFk = code === "ER_ROW_IS_REFERENCED_2" || code === 1451;
     return NextResponse.json(

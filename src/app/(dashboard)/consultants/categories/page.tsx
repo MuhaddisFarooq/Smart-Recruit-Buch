@@ -1,4 +1,3 @@
-// D:\portal\src\app\(dashboard)\consultants\categories\page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -10,6 +9,7 @@ type Row = {
   cat_name: string;
   main_cat_id: number | null;
   main_cat_name: string | null;
+  cat_description: string | null; // ✅ NEW
 };
 type MainCat = { id: number; cat_name: string };
 
@@ -80,11 +80,15 @@ export default function ConsultantCategoriesPage() {
     return out;
   }, [page, totalPages]);
 
-  function openEdit(row: Row) { setEditing(row); }
-  function closeEdit() { setEditing(null); }
+  function openEdit(row: Row) {
+    setEditing(row);
+  }
+  function closeEdit() {
+    setEditing(null);
+  }
 
-  // -------- Robust updater (JSON first; then overrides; last-resort urlencoded) --------
-  async function updateCategory(id: number, data: { cat_name: string; main_cat_id: number }) {
+  // -------- Updater (JSON first; graceful fallbacks) --------
+  async function updateCategory(id: number, data: { cat_name: string; main_cat_id: number; cat_description?: string | null }) {
     const jsonBody = JSON.stringify({ id, ...data });
 
     const send = async (method: string, url: string, headers: Record<string, string>, body: BodyInit) => {
@@ -95,7 +99,7 @@ export default function ConsultantCategoriesPage() {
         : await res.text().catch(() => "");
       if (!res.ok) {
         const msg =
-          (typeof payload === "object" && payload && (payload.error || payload.message)) ||
+          (typeof payload === "object" && payload && (payload as any).error) ||
           (typeof payload === "string" && payload) ||
           `HTTP ${res.status}`;
         const err: any = new Error(msg);
@@ -105,21 +109,31 @@ export default function ConsultantCategoriesPage() {
       return payload;
     };
 
-    // 1) PATCH JSON /:id (modern/Next handlers)
+    // 1) PATCH JSON /:id
     try {
-      return await send("PATCH", `/api/consultants/categories/${id}`, { "Content-Type": "application/json" }, jsonBody);
+      return await send(
+        "PATCH",
+        `/api/consultants/categories/${id}`,
+        { "Content-Type": "application/json" },
+        jsonBody
+      );
     } catch (e: any) {
       if (e?.status !== 404 && e?.status !== 405) throw e;
     }
 
     // 2) PUT JSON /:id
     try {
-      return await send("PUT", `/api/consultants/categories/${id}`, { "Content-Type": "application/json" }, jsonBody);
+      return await send(
+        "PUT",
+        `/api/consultants/categories/${id}`,
+        { "Content-Type": "application/json" },
+        jsonBody
+      );
     } catch (e: any) {
       if (e?.status !== 404 && e?.status !== 405) throw e;
     }
 
-    // 3) POST JSON + override (common PHP/Laravel/Koa middlewares)
+    // 3) POST JSON + override
     try {
       return await send(
         "POST",
@@ -131,7 +145,7 @@ export default function ConsultantCategoriesPage() {
       if (e?.status !== 404 && e?.status !== 405) throw e;
     }
 
-    // 4) POST JSON /:id (some custom routers)
+    // 4) POST JSON /:id with override
     try {
       return await send(
         "POST",
@@ -143,11 +157,12 @@ export default function ConsultantCategoriesPage() {
       if (e?.status !== 404 && e?.status !== 405) throw e;
     }
 
-    // 5) LAST RESORT: urlencoded + override
+    // 5) LAST RESORT: urlencoded
     const form = new URLSearchParams();
     form.set("id", String(id));
     form.set("cat_name", data.cat_name);
     form.set("main_cat_id", String(data.main_cat_id));
+    if (data.cat_description !== undefined) form.set("cat_description", data.cat_description ?? "");
     return await send(
       "POST",
       `/api/consultants/categories?id=${encodeURIComponent(String(id))}`,
@@ -155,7 +170,7 @@ export default function ConsultantCategoriesPage() {
       form
     );
   }
-  // ----------------------------------------------------------------------
+  // -----------------------------------------------------------
 
   async function saveEdit() {
     if (!editing) return;
@@ -165,6 +180,7 @@ export default function ConsultantCategoriesPage() {
       editing.main_cat_id == null || Number.isNaN(editing.main_cat_id as any)
         ? null
         : Number(editing.main_cat_id);
+    const desc = editing.cat_description ?? null;
 
     if (!name) {
       notify.error("Category name is required.");
@@ -178,7 +194,7 @@ export default function ConsultantCategoriesPage() {
     try {
       setSaving(true);
       await notify.promise(
-        updateCategory(editing.id, { cat_name: name, main_cat_id: mainId }),
+        updateCategory(editing.id, { cat_name: name, main_cat_id: mainId, cat_description: desc }),
         {
           loading: "Saving category…",
           success: "Category updated.",
@@ -236,9 +252,16 @@ export default function ConsultantCategoriesPage() {
             <select
               className="rounded-md border px-2 py-1"
               value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
             >
-              {[10, 25, 50, 100].map((n) => (<option key={n} value={n}>{n}</option>))}
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
             </select>
             <span>entries</span>
           </div>
@@ -248,7 +271,10 @@ export default function ConsultantCategoriesPage() {
             <input
               className="w-60 rounded-md border px-2 py-1"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
         </div>
@@ -257,34 +283,54 @@ export default function ConsultantCategoriesPage() {
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-gray-100 text-left text-sm">
-                <th className="border px-3 py-2 w-16">ID</th>
+                <th className="w-16 border px-3 py-2">ID</th>
                 <th className="border px-3 py-2">Category Name</th>
                 <th className="border px-3 py-2">Main Category Name</th>
-                <th className="border px-3 py-2 w-32 text-center">Action</th>
+                <th className="border px-3 py-2">Description</th>{/* ✅ NEW */}
+                <th className="w-32 border px-3 py-2 text-center">Action</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={4} className="border px-3 py-6 text-center text-sm">Loading…</td></tr>
+                <tr>
+                  <td colSpan={5} className="border px-3 py-6 text-center text-sm">
+                    Loading…
+                  </td>
+                </tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={4} className="border px-3 py-6 text-center text-sm">No records</td></tr>
+                <tr>
+                  <td colSpan={5} className="border px-3 py-6 text-center text-sm">
+                    No records
+                  </td>
+                </tr>
               ) : (
                 rows.map((r) => (
                   <tr key={r.id} className="odd:bg-white even:bg-gray-50">
                     <td className="border px-3 py-2 text-sm">{r.id}</td>
                     <td className="border px-3 py-2 text-sm">{r.cat_name}</td>
                     <td className="border px-3 py-2 text-sm">{r.main_cat_name ?? ""}</td>
+                    <td className="border px-3 py-2 text-sm">
+                      {r.cat_description
+                        ? r.cat_description.length > 120
+                          ? r.cat_description.slice(0, 120) + "…"
+                          : r.cat_description
+                        : ""}
+                    </td>
                     <td className="border px-3 py-2 text-center">
                       <button
                         onClick={() => openEdit(r)}
                         className="mr-2 inline-flex items-center rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
                         title="Edit"
-                      >✓</button>
+                      >
+                        ✓
+                      </button>
                       <button
                         onClick={() => del(r.id)}
                         className="inline-flex items-center rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
                         title="Delete"
-                      >🗑</button>
+                      >
+                        🗑
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -295,14 +341,43 @@ export default function ConsultantCategoriesPage() {
 
         <div className="mt-3 flex items-center justify-between text-sm">
           <div>
-            Showing {rows.length ? (page - 1) * pageSize + 1 : 0} to {Math.min(page * pageSize, total)} of {total} entries
+            Showing {rows.length ? (page - 1) * pageSize + 1 : 0} to{" "}
+            {Math.min(page * pageSize, total)} of {total} entries
           </div>
           <div className="flex items-center gap-1">
-            <button className="rounded-md border px-2 py-1 hover:bg-gray-50 disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</button>
-            {pageNumbers[0] > 1 && (<><PageBtn n={1} active={page === 1} onClick={() => setPage(1)} /><span className="px-1">…</span></>)}
-            {pageNumbers.map((n) => (<PageBtn key={n} n={n} active={page === n} onClick={() => setPage(n)} />))}
-            {pageNumbers[pageNumbers.length - 1] < totalPages && (<><span className="px-1">…</span><PageBtn n={totalPages} active={page === totalPages} onClick={() => setPage(totalPages)} /></>)}
-            <button className="rounded-md border px-2 py-1 hover:bg-gray-50 disabled:opacity-50" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</button>
+            <button
+              className="rounded-md border px-2 py-1 hover:bg-gray-50 disabled:opacity-50"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+            >
+              Previous
+            </button>
+            {pageNumbers[0] > 1 && (
+              <>
+                <PageBtn n={1} active={page === 1} onClick={() => setPage(1)} />
+                <span className="px-1">…</span>
+              </>
+            )}
+            {pageNumbers.map((n) => (
+              <PageBtn key={n} n={n} active={page === n} onClick={() => setPage(n)} />
+            ))}
+            {pageNumbers[pageNumbers.length - 1] < totalPages && (
+              <>
+                <span className="px-1">…</span>
+                <PageBtn
+                  n={totalPages}
+                  active={page === totalPages}
+                  onClick={() => setPage(totalPages)}
+                />
+              </>
+            )}
+            <button
+              className="rounded-md border px-2 py-1 hover:bg-gray-50 disabled:opacity-50"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -321,10 +396,10 @@ export default function ConsultantCategoriesPage() {
               />
             </div>
 
-            <div className="mb-4">
+            <div className="mb-3">
               <label className="mb-1 block text-sm font-medium">Main Category</label>
               <select
-                className="w-full rounded-md border px-3 py-2 bg-white"
+                className="w-full rounded-md border bg-white px-3 py-2"
                 value={editing.main_cat_id ?? ""}
                 onChange={(e) =>
                   setEditing({
@@ -333,16 +408,46 @@ export default function ConsultantCategoriesPage() {
                   })
                 }
               >
-                <option value="" disabled>Select…</option>
+                <option value="" disabled>
+                  Select…
+                </option>
                 {mains.map((m) => (
-                  <option key={m.id} value={m.id}>{m.cat_name}</option>
+                  <option key={m.id} value={m.id}>
+                    {m.cat_name}
+                  </option>
                 ))}
               </select>
             </div>
 
+            {/* ✅ NEW: Description */}
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">Description</label>
+              <textarea
+                className="w-full min-h-[100px] rounded-md border px-3 py-2 text-sm"
+                placeholder="Describe this category…"
+                value={editing.cat_description ?? ""}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    cat_description: e.target.value,
+                  })
+                }
+              />
+            </div>
+
             <div className="flex justify-end gap-2">
-              <button onClick={closeEdit} className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50" disabled={saving}>Cancel</button>
-              <button onClick={saveEdit} className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60" disabled={saving}>
+              <button
+                onClick={closeEdit}
+                className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                disabled={saving}
+              >
                 {saving ? "Saving…" : "Save"}
               </button>
             </div>
@@ -353,10 +458,20 @@ export default function ConsultantCategoriesPage() {
   );
 }
 
-function PageBtn({ n, active, onClick }: { n: number; active?: boolean; onClick: () => void; }) {
+function PageBtn({
+  n,
+  active,
+  onClick,
+}: {
+  n: number;
+  active?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
-      className={`min-w-[2rem] rounded-md border px-2 py-1 ${active ? "bg-lime-600 text-white border-lime-600" : "hover:bg-gray-50"}`}
+      className={`min-w-[2rem] rounded-md border px-2 py-1 ${
+        active ? "border-lime-600 bg-lime-600 text-white" : "hover:bg-gray-50"
+      }`}
       onClick={onClick}
     >
       {n}
