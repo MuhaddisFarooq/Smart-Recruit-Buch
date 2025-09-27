@@ -142,8 +142,8 @@ export default function AddExecutiveHealthCheckupPage() {
           {TA("consultations", "Consultations")}
           {TA("cardiology_tests", "Cardiology Tests")}
           {TA("radiology_tests", "Radiology Tests")}
-          {TA("lab_tests_left", "Laboratory Tests (Left column)")}
-          {TA("lab_tests_right", "Laboratory Tests (Right column)")}
+          {TA("lab_tests_left", "Laboratory Tests")}
+          {TA("lab_tests_right", "Laboratory Tests")}
         </div>
 
         {TA("instructions", "Instructions", "One instruction per line")}

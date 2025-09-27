@@ -67,7 +67,7 @@ export default function Page() {
   return (
     <div className="w-full lg:w-[30%] flex flex-col justify-center p-8">
       <div className="text-center">
-        <img src="/BINC_logo.png" alt="Company Logo" className="w-40 mx-auto pointer-events-none" />
+        <img src="/buch-logo.png" alt="Company Logo" className="w-40 mx-auto pointer-events-none" />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-md mx-auto">
