@@ -2,7 +2,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Gauge, Settings2, Users, Briefcase, Trophy, Building2,ClipboardList,Image as ImageIcon,Images } from "lucide-react";
+import { Gauge, Settings2, Users, Briefcase, Trophy, Building2,ClipboardList,Image as ImageIcon,Images,MessageSquareQuote,FlaskConical,BookOpen } from "lucide-react";
 
 type NavItem = { title: string; url: string; icon?: any; isActive?: boolean; items?: NavItem[] };
 
@@ -64,10 +64,25 @@ export const navMain: NavItem[] = [
     items: [
       { title: "View Insurance Company", url: "/insurance/company/view", isActive: true },
       { title: "Add Insurance Company", url: "/insurance/company/add", isActive: true },
+      
+    ],
+  },
+
+
+{
+    title: "Corporate",
+    url: "#",
+    icon: Building2,
+    isActive: true,
+    items: [
+  
       { title: "View Insurance Corporate", url: "/insurance/corporate/view", isActive: true },
       { title: "Add Insurance Corporate", url: "/insurance/corporate/add", isActive: true },
     ],
   },
+
+
+
 
 
 // inside navMain array:
@@ -105,7 +120,68 @@ export const navMain: NavItem[] = [
     ],
   },
 
+  {
+  title: "Testimonials",
+  url: "#",
+  icon: MessageSquareQuote,
+  isActive: true,
+  items: [
+    { title: "View",            url: "/testimonials/view", isActive: true },
+    { title: "Add Testimonial", url: "/testimonials/add",  isActive: true },
+  ],
+},
+
+{
+  title: "Clinical Study",
+  url: "#",
+  icon: FlaskConical,
+  isActive: true,
+  items: [
+    { title: "View",           url: "/clinical-study/view", isActive: true },
+    { title: "Add Clinical Study", url: "/clinical-study/add",  isActive: true },
+  ],
+},
+
+
+{
+  title: "Publications",
+  url: "#",
+  icon: BookOpen,
+  isActive: true,
+  items: [
+    { title: "View",            url: "/publications/view", isActive: true },
+    { title: "Add Publication", url: "/publications/add",  isActive: true },
+  ],
+},
+
+{
+  title: "HR Training",
+  url: "#",
+  icon: ClipboardList,       
+  isActive: true,
+  items: [
+    { title: "View",           url: "/hr-training/view", isActive: true },
+    { title: "Add HR Training",url: "/hr-training/add",  isActive: true },
+  ],
+},
+
+{
+  title: "Fertility Treatment",
+  url: "#",
+  icon: Images, 
+  isActive: true,
+  items: [
+    { title: "View", url: "/fertility-treatments/view", isActive: true },
+    { title: "Add Fertility Treatment", url: "/fertility-treatments/add", isActive: true },
+  ],
+},
+
+
 ];
+
+
+
+
 
 
 
