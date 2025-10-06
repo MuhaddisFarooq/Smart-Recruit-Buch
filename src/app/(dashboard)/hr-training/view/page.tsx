@@ -3,8 +3,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { notify } from "@/components/ui/notify";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -27,6 +30,7 @@ const PAGE_SIZES = [10, 25, 50, 100];
 function url(s?: string | null) { if (!s) return ""; return s.startsWith("/") ? s : `/uploads/${s}`; }
 
 export default function HrTrainingViewPage() {
+  const { data: session } = useSession();
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -34,6 +38,22 @@ export default function HrTrainingViewPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const confirm = useConfirm();
+
+  // Get session and permissions
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canExport = hasPerm(perms, "hr_training", "export");
+
+  // Export configuration
+  const exportColumns = [
+    { key: "id", header: "ID", width: 10 },
+    { key: "title", header: "Title", width: 25 },
+    { key: "date", header: "Date", width: 15 },
+    { key: "time", header: "Time", width: 12 },
+    { key: "duration", header: "Duration", width: 15 },
+    { key: "trainer", header: "Trainer", width: 20 },
+    { key: "department", header: "Department", width: 20 },
+    { key: "t_type", header: "Type", width: 15 },
+  ];
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -86,7 +106,21 @@ export default function HrTrainingViewPage() {
 
   return (
     <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">View HR Trainings</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">View HR Trainings</h1>
+        
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="hr_trainings_export"
+              title="HR Trainings Report"
+              disabled={loading}
+            />
+          )}
+        </div>
+      </div>
 
       {/* Controls */}
       <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

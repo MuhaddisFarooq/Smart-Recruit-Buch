@@ -3,10 +3,14 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
 
 // ✅ imports for confirm modal + toast
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { notify } from "@/components/ui/notify";
+import RequirePerm from "@/components/auth/RequirePerm";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -38,7 +42,16 @@ function toPicUrl(src?: string | null): string | undefined {
   return `/uploads/consultants/${s}`;
 }
 
-export default function ConsultantsViewPage() {
+function ViewConsultantsInner() {
+  const { data } = useSession();
+  const perms = (data?.user as any)?.perms as PermissionMap | undefined;
+
+  const canView   = hasPerm(perms, "consultants", "view");
+  const canNew    = hasPerm(perms, "consultants", "new");
+  const canEdit   = hasPerm(perms, "consultants", "edit");
+  const canDelete = hasPerm(perms, "consultants", "delete");
+  const canExport = hasPerm(perms, "consultants", "export");
+
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -46,7 +59,6 @@ export default function ConsultantsViewPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // ✅ access confirm() from provider
   const confirm = useConfirm();
 
   const totalPages = useMemo(
@@ -94,6 +106,7 @@ export default function ConsultantsViewPage() {
   }, [search]);
 
   async function toggleStatus(id: number) {
+    if (!canEdit) return;
     try {
       const res = await fetch(`/api/consultants/${id}`, {
         method: "PATCH",
@@ -112,7 +125,8 @@ export default function ConsultantsViewPage() {
   }
 
   async function onDelete(id: number) {
-    // ✅ use custom confirm dialog instead of window.confirm()
+    if (!canDelete) return;
+
     const ok = await confirm({
       title: "Delete consultant?",
       description: "This action cannot be undone.",
@@ -139,6 +153,14 @@ export default function ConsultantsViewPage() {
     }
   }
 
+  // Export configuration
+  const exportColumns = [
+    { key: "consultant_id", header: "Consultant ID", width: 15 },
+    { key: "name", header: "Name", width: 20 },
+    { key: "cat_name", header: "Category", width: 20 },
+    { key: "status", header: "Status", width: 12 },
+  ];
+
   const Picture: React.FC<{ src?: string | null; alt: string }> = ({ src, alt }) => {
     const url = toPicUrl(src);
     return url ? (
@@ -156,8 +178,29 @@ export default function ConsultantsViewPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Consultants</h1>
+
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="consultants_export"
+              title="Consultants Report"
+              disabled={loading}
+            />
+          )}
+          {canNew && (
+            <Link
+              href="/consultants/add-new"
+              className="rounded-md bg-[#c8e967] px-3 py-2 text-sm font-medium text-black hover:bg-[#b9db58]"
+              title="Add new consultant"
+            >
+              + Add
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Controls */}
@@ -216,25 +259,35 @@ export default function ConsultantsViewPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <button
-                        title="Toggle status"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                        onClick={() => toggleStatus(r.id)}
-                      >●</button>
+                    {(!canEdit && !canDelete) ? (
+                      <span className="text-gray-400">—</span>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        {canEdit && (
+                          <button
+                            title="Toggle status"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                            onClick={() => toggleStatus(r.id)}
+                          >●</button>
+                        )}
 
-                      <Link
-                        href={`/consultants/${r.id}/edit`}
-                        title="Edit"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                      >✎</Link>
+                        {canEdit && (
+                          <Link
+                            href={`/consultants/${r.id}/edit`}
+                            title="Edit"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                          >✎</Link>
+                        )}
 
-                      <button
-                        title="Delete"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                        onClick={() => onDelete(r.id)}
-                      >🗑</button>
-                    </div>
+                        {canDelete && (
+                          <button
+                            title="Delete"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                            onClick={() => onDelete(r.id)}
+                          >🗑</button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))
@@ -281,5 +334,13 @@ export default function ConsultantsViewPage() {
         </nav>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <RequirePerm moduleKey="consultants" action="view">
+      <ViewConsultantsInner />
+    </RequirePerm>
   );
 }

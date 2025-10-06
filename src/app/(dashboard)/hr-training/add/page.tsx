@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { notify } from "@/components/ui/notify";
+import CKEditor4 from "@/components/CKEditor4";
 
 export default function AddHrTrainingPage() {
   const [image, setImage] = useState<File | null>(null);
@@ -139,20 +140,21 @@ export default function AddHrTrainingPage() {
             />
           </div>
 
-          {/* Training Agenda (HTML) */}
+          {/* Training Agenda (CKEditor 4) */}
           <div className="md:col-span-2">
             <label className="mb-1 block text-sm font-medium">
-              Training Agenda (HTML / CKEditor content)
+              Training Agenda
             </label>
-            <textarea
-              rows={12}
-              className="w-full rounded-md border px-3 py-2 text-sm font-mono"
+            <CKEditor4
               value={agenda}
-              onChange={(e) => setAgenda(e.target.value)}
-              placeholder="<h3>Welcome</h3><p>Intro text…</p>"
+              onChange={setAgenda}
+              height={400}
+              // If you enabled the placeholder plugin in your /public/ckeditor build,
+              // you can pass it via config:
+              // config={{ extraPlugins: "editorplaceholder", editorplaceholder: "Start writing your training agenda here..." }}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Paste the HTML from CKEditor here; it will be stored and rendered as-is.
+              Use the rich text editor to create your training agenda with formatting, images, videos, tables, and more.
             </p>
           </div>
 

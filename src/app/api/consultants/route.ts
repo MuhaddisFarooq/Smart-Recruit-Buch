@@ -2,10 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
-import type { Session } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs"; // ✅ require Node APIs for mysql2
 
 // normalize comma/newline separated text into newline-separated string
 function normalizeList(input: unknown): string | null {
@@ -26,8 +27,6 @@ function toSpecialtiesArray(input: unknown): string[] {
 
 // ensure schedule is persisted as JSON string
 function normalizeSchedule(input: any): string {
-  // expected: { monday: [{start, end}], tuesday: [...], ... }
-  // if nothing valid is passed, store an empty object
   try {
     if (input && typeof input === "object") {
       return JSON.stringify(input);
@@ -42,6 +41,14 @@ function normalizeSchedule(input: any): string {
  */
 export async function GET(req: NextRequest) {
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const page = Math.max(1, Number(searchParams.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") || 10)));
@@ -56,14 +63,12 @@ export async function GET(req: NextRequest) {
     }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    // total rows
     const totalRows = await query<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM consultant c ${whereSql}`,
       params
     );
     const total = totalRows[0]?.cnt ?? 0;
 
-    // page rows
     const rows = await query<{
       id: number;
       name: string;
@@ -84,18 +89,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: rows, total, page, pageSize });
   } catch (err: any) {
     console.error("[consultants:GET] DB error:", err);
-    return NextResponse.json(
-      { error: err?.message || "DB error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err?.message || "DB error" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
-    // required fields
     const required = ["consultant_id", "cat_name", "name"];
     for (const k of required) {
       if (!String(b?.[k] ?? "").trim()) {
@@ -106,26 +115,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // who added this
-    const session: Session | null = await getServerSession(authOptions);
-    const addedBy =
-      session?.user?.email || session?.user?.name || "system";
+    const addedBy = session.user?.email || session.user?.name || "system";
 
-    // transform inputs
     const specialtiesArr = toSpecialtiesArray(b.specialties);
     const educationText = normalizeList(b.education);
     const aoeText = normalizeList(b.aoe);
     const scheduleJson = normalizeSchedule(b.schedule);
 
-    // IMPORTANT:
-    // Use an EXPLICIT column list and the SAME number of placeholders.
-    //
-    // Make sure your table has these columns:
-    // consultant_id, cat_name, name, fee, dcd, specialties, education, aoe,
-    // schedule, profile_pic, employment_status, doctor_type, status, addedBy, addedDate
-    //
-    // If your column is spelled "specialities" (British) instead of "specialties",
-    // change the column name below to match your schema.
     const sql = `
       INSERT INTO consultant
       (
@@ -150,10 +146,10 @@ export async function POST(req: NextRequest) {
       b.fee ?? null,
       b.dcd ?? null,
 
-      JSON.stringify(specialtiesArr), // store array as JSON
+      JSON.stringify(specialtiesArr),
       educationText,
       aoeText,
-      scheduleJson,                   // store schedule as JSON
+      scheduleJson,
 
       String(b.profile_pic ?? ""),
       String(b.employment_status ?? ""),
@@ -165,9 +161,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("[consultants:POST] DB error:", err);
-    return NextResponse.json(
-      { error: err?.message || "DB error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err?.message || "DB error" }, { status: 500 });
   }
 }

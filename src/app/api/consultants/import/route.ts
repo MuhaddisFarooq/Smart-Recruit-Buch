@@ -3,11 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // need Node for xlsx & Buffer
+export const runtime = "nodejs"; // ✅ Node APIs needed (xlsx, mysql2, Buffer)
 
-// Helpers (same shape as /api/consultants/route.ts)
+// Helpers
 function normalizeList(input: unknown): string | null {
   const items = String(input ?? "")
     .split(/[\n,]+/)
@@ -28,18 +29,23 @@ function normalizeSchedule(input: any): string {
   return JSON.stringify({});
 }
 
-// Lazy import for xlsx
 let _xlsx: any;
 async function getXLSX() {
-  if (!_xlsx) _xlsx = await import("xlsx"); // npm i xlsx
+  if (!_xlsx) _xlsx = await import("xlsx");
   return _xlsx;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    // Who is importing?
+    // 🔒 Require "new"
     const session = await getServerSession(authOptions);
-    const actorEmail = session?.user?.email || session?.user?.name || "import";
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const actorEmail = session.user?.email || session.user?.name || "import";
 
     const form = await req.formData();
     const file = form.get("file") as File | null;
@@ -65,7 +71,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "The worksheet is empty." }, { status: 400 });
     }
 
-    // Same explicit column list as single-insert endpoint
     const sql = `
       INSERT INTO consultant
       (
@@ -86,15 +91,10 @@ export async function POST(req: NextRequest) {
     let inserted = 0;
 
     for (const r of rows) {
-      // Expected headers (case-insensitive):
-      // consultant_id, name, main_category, category, fee, dcd,
-      // specialties, education, aoe, employment_status, is_surgeon, profile_pic,
-      // {day}_morning_start, {day}_morning_end, {day}_evening_start, {day}_evening_end
-
       const consultant_id = String(r.consultant_id ?? r.CONSULTANT_ID ?? "").trim();
       const name = String(r.name ?? r.NAME ?? "").trim();
       const cat_name = String(r.category ?? r.CATEGORY ?? "").trim();
-      if (!consultant_id || !name || !cat_name) continue; // skip invalid
+      if (!consultant_id || !name || !cat_name) continue;
 
       const fee =
         r.fee !== "" && r.fee !== null && r.fee !== undefined ? Number(r.fee) : null;
@@ -134,11 +134,11 @@ export async function POST(req: NextRequest) {
         JSON.stringify(specialtiesArr),
         educationText,
         aoeText,
-        normalizeSchedule(scheduleObj),
+        JSON.stringify(scheduleObj),
         profile_pic,
         employment_status,
         doctor_type,
-        actorEmail, // <-- stamp who imported
+        actorEmail,
       ]);
 
       inserted++;

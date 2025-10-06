@@ -3,8 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs"; // ✅ require Node APIs for mysql2
 
 // GET /api/consultants/[id]
 export async function GET(
@@ -12,6 +14,14 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id: idStr } = await ctx.params;
     const id = Number(idStr);
     if (!Number.isFinite(id)) {
@@ -45,16 +55,21 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id: idStr } = await ctx.params;
     const id = Number(idStr);
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "Bad id" }, { status: 400 });
     }
 
-    // Get the actual logged-in user from the server session
-    const session = await getServerSession(authOptions);
-    const actorEmail = session?.user?.email || session?.user?.name || "unknown";
-
+    const actorEmail = session.user?.email || session.user?.name || "unknown";
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
     // Toggle status
@@ -77,9 +92,9 @@ export async function PATCH(
     // Field updates
     const fields: string[] = [];
     const paramsArr: any[] = [];
-    const set = (col: string, val: any) => { 
-      fields.push(`${col} = ?`); 
-      paramsArr.push(val); 
+    const set = (col: string, val: any) => {
+      fields.push(`${col} = ?`);
+      paramsArr.push(val);
     };
 
     if (body.consultant_id !== undefined) set("consultant_id", String(body.consultant_id).trim());
@@ -95,10 +110,10 @@ export async function PATCH(
     }
 
     if (body.schedule !== undefined) {
-      try { 
-        set("schedule", JSON.stringify(body.schedule)); 
-      } catch { 
-        set("schedule", null); 
+      try {
+        set("schedule", JSON.stringify(body.schedule));
+      } catch {
+        set("schedule", null);
       }
     }
 
@@ -109,7 +124,6 @@ export async function PATCH(
       set("status", String(body.status).toLowerCase() === "active" ? "active" : "inactive");
     }
 
-    // Always stamp updater + time with the actual session user
     set("updatedBy", actorEmail);
     fields.push("updatedDate = NOW()");
 
@@ -131,14 +145,20 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id: idStr } = await ctx.params;
     const id = Number(idStr);
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "Bad id" }, { status: 400 });
     }
-    
-    // Optionally, you could also track who deleted the record
-    // by adding a soft delete mechanism or logging
+
     await query("DELETE FROM consultant WHERE id = ?", [id]);
     return NextResponse.json({ ok: true });
   } catch (err: any) {

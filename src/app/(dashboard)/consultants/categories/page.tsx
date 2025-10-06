@@ -3,17 +3,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import RequirePerm from "@/components/auth/RequirePerm";
+import { useSession } from "next-auth/react";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
   cat_name: string;
   main_cat_id: number | null;
   main_cat_name: string | null;
-  cat_description: string | null; // ✅ NEW
+  cat_description: string | null;
 };
 type MainCat = { id: number; cat_name: string };
 
-export default function ConsultantCategoriesPage() {
+function CategoriesInner() {
+  const { data } = useSession();
+  const perms = (data?.user as any)?.perms as PermissionMap | undefined;
+
+  const canEdit = hasPerm(perms, "consultants", "edit");
+  const canDelete = hasPerm(perms, "consultants", "delete");
+  const canExport = hasPerm(perms, "consultants", "export");
+
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -26,6 +37,14 @@ export default function ConsultantCategoriesPage() {
   const [saving, setSaving] = useState(false);
 
   const confirm = useConfirm();
+
+  // Export configuration
+  const exportColumns = [
+    { key: "id", header: "ID", width: 10 },
+    { key: "cat_name", header: "Category Name", width: 25 },
+    { key: "main_cat_name", header: "Main Category", width: 25 },
+    { key: "cat_description", header: "Description", width: 40 },
+  ];
 
   useEffect(() => {
     (async () => {
@@ -81,6 +100,7 @@ export default function ConsultantCategoriesPage() {
   }, [page, totalPages]);
 
   function openEdit(row: Row) {
+    if (!canEdit) return;
     setEditing(row);
   }
   function closeEdit() {
@@ -173,7 +193,7 @@ export default function ConsultantCategoriesPage() {
   // -----------------------------------------------------------
 
   async function saveEdit() {
-    if (!editing) return;
+    if (!editing || !canEdit) return;
 
     const name = String(editing.cat_name || "").trim();
     const mainId =
@@ -211,6 +231,8 @@ export default function ConsultantCategoriesPage() {
   }
 
   async function del(id: number) {
+    if (!canDelete) return;
+
     const ok = await confirm({
       title: "Delete this category?",
       description: "This action cannot be undone.",
@@ -243,7 +265,21 @@ export default function ConsultantCategoriesPage() {
 
   return (
     <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">View Consultant Departments</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">View Consultant Departments</h1>
+        
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="consultant_categories_export"
+              title="Consultant Categories Report"
+              disabled={loading}
+            />
+          )}
+        </div>
+      </div>
 
       <div className="rounded-xl border bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
@@ -286,7 +322,7 @@ export default function ConsultantCategoriesPage() {
                 <th className="w-16 border px-3 py-2">ID</th>
                 <th className="border px-3 py-2">Category Name</th>
                 <th className="border px-3 py-2">Main Category Name</th>
-                <th className="border px-3 py-2">Description</th>{/* ✅ NEW */}
+                <th className="border px-3 py-2">Description</th>
                 <th className="w-32 border px-3 py-2 text-center">Action</th>
               </tr>
             </thead>
@@ -317,20 +353,27 @@ export default function ConsultantCategoriesPage() {
                         : ""}
                     </td>
                     <td className="border px-3 py-2 text-center">
-                      <button
-                        onClick={() => openEdit(r)}
-                        className="mr-2 inline-flex items-center rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
-                        title="Edit"
-                      >
-                        ✓
-                      </button>
-                      <button
-                        onClick={() => del(r.id)}
-                        className="inline-flex items-center rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-                        title="Delete"
-                      >
-                        🗑
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        {canEdit && (
+                          <button
+                            onClick={() => openEdit(r)}
+                            className="inline-flex items-center rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
+                            title="Edit"
+                          >
+                            ✓
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => del(r.id)}
+                            className="inline-flex items-center rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                            title="Delete"
+                          >
+                            🗑
+                          </button>
+                        )}
+                        {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -382,7 +425,7 @@ export default function ConsultantCategoriesPage() {
         </div>
       </div>
 
-      {editing && (
+      {editing && canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3">
           <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
             <div className="mb-3 text-lg font-semibold">Edit Category</div>
@@ -419,7 +462,6 @@ export default function ConsultantCategoriesPage() {
               </select>
             </div>
 
-            {/* ✅ NEW: Description */}
             <div className="mb-4">
               <label className="mb-1 block text-sm font-medium">Description</label>
               <textarea
@@ -476,5 +518,13 @@ function PageBtn({
     >
       {n}
     </button>
+  );
+}
+
+export default function Page() {
+  return (
+    <RequirePerm moduleKey="consultants" action="view">
+      <CategoriesInner />
+    </RequirePerm>
   );
 }

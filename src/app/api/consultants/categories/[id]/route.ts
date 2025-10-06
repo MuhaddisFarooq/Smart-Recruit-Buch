@@ -1,8 +1,12 @@
 // src/app/api/consultants/categories/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs"; // ✅ mysql2 -> Node
 
 async function readBody(req: NextRequest) {
   const ct = (req.headers.get("content-type") || "").toLowerCase();
@@ -19,6 +23,14 @@ async function readBody(req: NextRequest) {
 /** GET one sub-category (with description) */
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const id = Number(params.id);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -50,6 +62,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 /** PATCH/PUT: update sub-category (name/main/description) */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const id = Number(params.id);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -104,6 +124,14 @@ export const PUT = PATCH;
 /** DELETE */
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "consultants", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const id = Number(params.id);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 

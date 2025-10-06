@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { notify } from "@/components/ui/notify";
+import CKEditor4 from "@/components/CKEditor4";
 
 export default function AddFertilityTreatmentPage() {
   const [title, setTitle] = useState("");
@@ -27,7 +28,7 @@ export default function AddFertilityTreatmentPage() {
       const fd = new FormData();
       fd.append("title", title);
       fd.append("details", details);
-      fd.append("description_html", descriptionHtml);
+      fd.append("description_html", descriptionHtml); // keep HTML verbatim
       if (image) fd.append("image", image);
 
       const res = await fetch("/api/fertility-treatments", { method: "POST", body: fd });
@@ -35,10 +36,16 @@ export default function AddFertilityTreatmentPage() {
       if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
 
       notify.success("Fertility treatment saved.");
-      setTitle(""); setDetails(""); setDescriptionHtml(""); setImage(null); setPreview(null);
+      setTitle("");
+      setDetails("");
+      setDescriptionHtml("");
+      setImage(null);
+      setPreview(null);
     } catch (e: any) {
       notify.error(e?.message || "Failed to save.");
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -49,15 +56,22 @@ export default function AddFertilityTreatmentPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium">Title</label>
-            <input className="w-full rounded-md border px-3 py-2 text-sm" value={title}
-                   onChange={(e) => setTitle(e.target.value)} placeholder="e.g. ICSI" />
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. ICSI"
+            />
           </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium">Details (short blurb)</label>
-            <input className="w-full rounded-md border px-3 py-2 text-sm" value={details}
-                   onChange={(e) => setDetails(e.target.value)}
-                   placeholder="Short text shown on the card…" />
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Short text shown on the card…"
+            />
           </div>
 
           <div className="space-y-2">
@@ -67,32 +81,35 @@ export default function AddFertilityTreatmentPage() {
                 {preview ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={preview} alt="preview" className="h-24 w-32 object-cover" />
-                ) : <span className="text-xs text-gray-400">No image</span>}
+                ) : (
+                  <span className="text-xs text-gray-400">No image</span>
+                )}
               </div>
               <input type="file" accept="image/*" onChange={onPick} />
             </div>
           </div>
         </div>
 
+        {/* CKEditor 4 for Description */}
         <div>
-          <label className="mb-1 block text-sm font-medium">
-            Description (HTML / CKEditor content)
-          </label>
-          <textarea
-            rows={12}
-            className="w-full rounded-md border px-3 py-2 text-sm font-mono"
+          <label className="mb-1 block text-sm font-medium">Description</label>
+          <CKEditor4
             value={descriptionHtml}
-            onChange={(e) => setDescriptionHtml(e.target.value)}
-            placeholder="<h2>What is ICSI?</h2>..."
+            onChange={setDescriptionHtml}
+            height={400}
+            // config={{ extraPlugins: "editorplaceholder", editorplaceholder: "Write the full treatment description…" }}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Paste HTML from CKEditor here; it will be stored as-is and rendered on the site.
+            This rich text will be stored and rendered exactly as written.
           </p>
         </div>
 
         <div className="pt-2">
-          <button type="submit" disabled={saving}
-                  className="rounded-md bg-[#c8e967] px-4 py-2 text-sm font-medium text-black hover:bg-[#b9db58] disabled:opacity-60">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-[#c8e967] px-4 py-2 text-sm font-medium text-black hover:bg-[#b9db58] disabled:opacity-60"
+          >
             {saving ? "Saving…" : "Submit"}
           </button>
         </div>

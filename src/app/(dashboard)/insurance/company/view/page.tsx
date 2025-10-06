@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -25,6 +28,19 @@ export default function ViewInsuranceCompanyPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const confirm = useConfirm();
+
+  // Get session and permissions
+  const { data: session } = useSession();
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canExport = hasPerm(perms, "insurance", "export");
+
+  // Export configuration
+  const exportColumns = [
+    { key: "id", header: "ID", width: 10 },
+    { key: "name", header: "Name", width: 25 },
+    { key: "profile", header: "Profile", width: 30 },
+    { key: "address", header: "Address", width: 35 },
+  ];
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -89,7 +105,21 @@ export default function ViewInsuranceCompanyPage() {
 
   return (
     <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">View Insurance Company</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">View Insurance Company</h1>
+        
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="insurance_company_export"
+              title="Insurance Company Report"
+              disabled={loading}
+            />
+          )}
+        </div>
+      </div>
 
       <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2">

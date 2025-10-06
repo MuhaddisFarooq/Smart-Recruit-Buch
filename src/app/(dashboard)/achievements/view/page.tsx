@@ -2,8 +2,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -23,6 +26,19 @@ export default function AchievementsViewPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const confirm = useConfirm();
+
+  // Get session and permissions
+  const { data: session } = useSession();
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canExport = hasPerm(perms, "achievements", "export");
+
+  // Export configuration
+  const exportColumns = [
+    { key: "id", header: "ID", width: 10 },
+    { key: "image", header: "Image Path", width: 30 },
+    { key: "addedBy", header: "Added By", width: 20 },
+    { key: "addedDate", header: "Added Date", width: 15 },
+  ];
 
   async function load() {
     setLoading(true);
@@ -74,7 +90,21 @@ export default function AchievementsViewPage() {
 
   return (
     <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">Achievements</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Achievements</h1>
+        
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="achievements_export"
+              title="Achievements Report"
+              disabled={loading}
+            />
+          )}
+        </div>
+      </div>
 
       {loading ? (
         <div className="rounded-xl border bg-white p-6 text-center text-gray-500 shadow-sm">Loading…</div>

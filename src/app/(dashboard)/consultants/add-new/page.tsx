@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { notify } from "@/components/ui/notify";
+import RequirePerm from "@/components/auth/RequirePerm";
 
 type DayKey =
   | "monday"
@@ -24,9 +25,9 @@ type FormState = {
   name: string;
   consultancyFee: string;
   degreeCompletionDate: string;
-  specialties: string; // comma/newline separated; API normalizes
-  education: string;   // API normalizes to newline-separated list
-  expertise: string;   // API normalizes to newline-separated list
+  specialties: string;
+  education: string;
+  expertise: string;
   schedule: Record<DayKey, DaySchedule>;
   employment:
     | "Permanent"
@@ -116,7 +117,7 @@ async function uploadBlob(blob: Blob, originalName = "image.jpg") {
 
 /* ----------------------------------------------------------------------------- */
 
-export default function AddConsultantPage() {
+function AddConsultantInner() {
   const [preview, setPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -335,8 +336,8 @@ export default function AddConsultantPage() {
       setSelectedSub("");
       setSubCats([]);
       setUploadedFilename("");
-    } catch (err) {
-      // errors are already toasted by notify.promise
+    } catch {
+      /* toast already shown */
     } finally {
       setSaving(false);
     }
@@ -546,9 +547,7 @@ export default function AddConsultantPage() {
                 >
                   Choose Image
                 </button>
-                {uploading && (
-                  <span className="text-xs text-gray-500">Uploading…</span>
-                )}
+                {uploading && <span className="text-xs text-gray-500">Uploading…</span>}
               </div>
             </div>
 
@@ -606,5 +605,13 @@ export default function AddConsultantPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function AddConsultantPage() {
+  return (
+    <RequirePerm moduleKey="consultants" action="new">
+      <AddConsultantInner />
+    </RequirePerm>
   );
 }

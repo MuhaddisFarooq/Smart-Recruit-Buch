@@ -3,8 +3,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -19,6 +22,7 @@ const PAGE_SIZES = [10, 25, 50, 100];
 function url(s?: string | null) { if (!s) return null; return s.startsWith("/") ? s : `/uploads/${s}`; }
 
 export default function FertilityViewPage() {
+  const { data: session } = useSession();
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -26,6 +30,19 @@ export default function FertilityViewPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const confirm = useConfirm();
+
+  // Get session and permissions
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canExport = hasPerm(perms, "fertility_treatment", "export");
+
+  // Export configuration
+  const exportColumns = [
+    { key: "id", header: "ID", width: 10 },
+    { key: "title", header: "Title", width: 30 },
+    { key: "details", header: "Details", width: 40 },
+    { key: "image", header: "Image", width: 25 },
+    { key: "addedDate", header: "Added Date", width: 15 },
+  ];
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -75,7 +92,21 @@ export default function FertilityViewPage() {
 
   return (
     <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">View Fertility Treatments</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">View Fertility Treatments</h1>
+        
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="fertility_treatments_export"
+              title="Fertility Treatments Report"
+              disabled={loading}
+            />
+          )}
+        </div>
+      </div>
 
       {/* Controls */}
       <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

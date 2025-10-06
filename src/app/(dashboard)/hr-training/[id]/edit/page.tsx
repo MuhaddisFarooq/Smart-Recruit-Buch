@@ -1,8 +1,10 @@
+// src/app/(dashboard)/hr-training/[id]/edit/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { notify } from "@/components/ui/notify";
+import CKEditor4 from "@/components/CKEditor4";
 
 type Training = {
   id: number;
@@ -98,8 +100,7 @@ export default function EditHrTrainingPage() {
         fd.append("duration", duration);
         fd.append("trainer", trainer);
         fd.append("participants", participants);
-        // keep HTML:
-        fd.append("t_agenda", agenda);
+        fd.append("t_agenda", agenda); // HTML unchanged
         fd.append("department", department);
         fd.append("t_type", type);
         fd.append("t_certificate", certificate);
@@ -116,7 +117,7 @@ export default function EditHrTrainingPage() {
             duration,
             trainer,
             participants,
-            t_agenda: agenda, // HTML
+            t_agenda: agenda, // HTML unchanged
             department,
             t_type: type,
             t_certificate: certificate,
@@ -125,7 +126,7 @@ export default function EditHrTrainingPage() {
       }
 
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`); // ← fixed here
       notify.success("Training updated.");
       router.push("/hr-training/view");
     } catch (e: any) {
@@ -202,24 +203,20 @@ export default function EditHrTrainingPage() {
               placeholder="Separate by comma or newline"
             />
           </div>
+        </div>
 
-          {/* Training Agenda (HTML) */}
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium">
-              Training Agenda (HTML / CKEditor content)
-            </label>
-            <textarea
-              rows={12}
-              className="w-full rounded-md border px-3 py-2 text-sm font-mono"
-              value={agenda}
-              onChange={(e) => setAgenda(e.target.value)}
-              placeholder="<h3>Welcome</h3><p>Intro text…</p>"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Paste the HTML from CKEditor here; it will be stored and rendered as-is.
-            </p>
-          </div>
+        {/* Training Agenda (CKEditor 4) */}
+        <div className="mt-6">
+          <label className="mb-1 block text-sm font-medium">Training Agenda</label>
+          <CKEditor4
+            value={agenda}
+            onChange={setAgenda}
+            height={400}
+            // config={{ extraPlugins: "editorplaceholder", editorplaceholder: "Start writing your training agenda here..." }}
+          />
+        </div>
 
+        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium">Department</label>
             <input

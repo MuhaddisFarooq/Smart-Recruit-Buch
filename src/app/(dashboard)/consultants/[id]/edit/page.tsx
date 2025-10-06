@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { notify } from "@/components/ui/notify"; // ✅ toast helper
+import { notify } from "@/components/ui/notify";
+import RequirePerm from "@/components/auth/RequirePerm";
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 
@@ -89,7 +90,7 @@ async function tryUpload(file: File): Promise<string> {
   }
 }
 
-export default function EditConsultantPage() {
+function EditConsultantInner() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -185,11 +186,9 @@ export default function EditConsultantPage() {
         throw new Error(j?.error || `Failed (${r.status})`);
       }
 
-      // ✅ toast instead of alert
       notify.success("Consultant updated successfully.");
       router.push("/consultants/view");
     } catch (e: any) {
-      // ✅ toast instead of alert
       notify.error(e?.message || "Update failed.");
     } finally {
       setSaving(false);
@@ -372,5 +371,13 @@ export default function EditConsultantPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <RequirePerm moduleKey="consultants" action="edit">
+      <EditConsultantInner />
+    </RequirePerm>
   );
 }

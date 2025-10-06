@@ -4,20 +4,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { notify } from "@/components/ui/notify";
+import RequirePerm from "@/components/auth/RequirePerm";
 
 type MainCat = { id: number; cat_name: string };
 type SubCat = { id: number; cat_name: string; main_cat_id: number };
 
-export default function AddConsultantCategoryPage() {
+function AddCategoryInner() {
   const [mainCats, setMainCats] = useState<MainCat[]>([]);
   const [mainId, setMainId] = useState<number | "">("");
   const [sub, setSub] = useState("");
-  const [description, setDescription] = useState(""); // ✅ NEW
+  const [description, setDescription] = useState("");
   const [subCats, setSubCats] = useState<SubCat[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // image state
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -25,7 +25,6 @@ export default function AddConsultantCategoryPage() {
 
   const subNormalized = useMemo(() => sub.trim(), [sub]);
 
-  /* ------------------ client-side compression to KB ------------------ */
   async function compressToTarget(
     file: File,
     maxSideStart = 1200,
@@ -80,7 +79,7 @@ export default function AddConsultantCategoryPage() {
     const r = await fetch("/api/uploads?folder=categories", { method: "POST", body: fd });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j?.error || `Upload failed (HTTP ${r.status})`);
-    return String(j?.filename || ""); // "categories/<file>"
+    return String(j?.filename || "");
   }
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -94,7 +93,7 @@ export default function AddConsultantCategoryPage() {
       const compressed = await compressToTarget(f, 1200, 300, 600);
       setPreview(URL.createObjectURL(compressed));
       const stored = await uploadBlobToCategories(compressed, f.name);
-      setUploadedFilename(stored); // "categories/<filename>"
+      setUploadedFilename(stored);
       notify.success("Image uploaded.");
     } catch (err: any) {
       console.error(err);
@@ -106,9 +105,7 @@ export default function AddConsultantCategoryPage() {
       setUploading(false);
     }
   }
-  /* ------------------------------------------------------------------- */
 
-  // load main categories once
   useEffect(() => {
     (async () => {
       try {
@@ -126,7 +123,6 @@ export default function AddConsultantCategoryPage() {
     })();
   }, []);
 
-  // load subs when a main is selected
   useEffect(() => {
     if (!mainId || typeof mainId !== "number") {
       setSubCats([]);
@@ -173,7 +169,7 @@ export default function AddConsultantCategoryPage() {
             main_cat_id: mainId,
             cat_name: subNormalized,
             cat_img: uploadedFilename || null,
-            cat_description: description || null, // ✅ NEW
+            cat_description: description || null,
           }),
         });
         const j = await res.json().catch(() => ({}));
@@ -189,7 +185,7 @@ export default function AddConsultantCategoryPage() {
 
       // reset
       setSub("");
-      setDescription(""); // ✅ NEW
+      setDescription("");
       setPreview(null);
       setUploadedFilename("");
       if (fileRef.current) fileRef.current.value = "";
@@ -246,7 +242,7 @@ export default function AddConsultantCategoryPage() {
 
         {/* Description + Image */}
         <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* ✅ NEW: Description */}
+          {/* Description */}
           <div className="space-y-2">
             <label className="mb-1 block text-sm font-medium">
               Category Description <span className="text-gray-500">(optional)</span>
@@ -259,11 +255,9 @@ export default function AddConsultantCategoryPage() {
             />
           </div>
 
-          {/* Existing image upload */}
+          {/* Image upload */}
           <div className="space-y-2">
-            <label className="mb-1 block text-sm font-medium">
-              Category Image <span className="text-gray-500"></span>
-            </label>
+            <label className="mb-1 block text-sm font-medium">Category Image</label>
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border bg-gray-50">
                 {preview ? (
@@ -306,5 +300,13 @@ export default function AddConsultantCategoryPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <RequirePerm moduleKey="consultants" action="new">
+      <AddCategoryInner />
+    </RequirePerm>
   );
 }

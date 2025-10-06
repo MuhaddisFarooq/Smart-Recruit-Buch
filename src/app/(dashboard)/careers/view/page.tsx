@@ -3,8 +3,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -32,6 +35,35 @@ export default function CareersViewPage() {
   const [loading, setLoading] = useState(true);
 
   const confirm = useConfirm();
+  const { data: session } = useSession();
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+
+  // Check if user has view permission
+  const canView = hasPerm(perms, "careers", "view");
+  const canEdit = hasPerm(perms, "careers", "edit");
+  const canDelete = hasPerm(perms, "careers", "delete");
+  const canExport = hasPerm(perms, "careers", "export");
+
+  // Export configuration
+  const exportColumns = [
+    { key: "id", header: "ID", width: 10 },
+    { key: "job_title", header: "Job Title", width: 25 },
+    { key: "type_of_employment", header: "Employment Type", width: 20 },
+    { key: "department", header: "Department", width: 20 },
+    { key: "status", header: "Status", width: 12 },
+  ];
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view careers.</p>
+        </div>
+      </div>
+    );
+  }
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / pageSize)),
@@ -147,8 +179,20 @@ export default function CareersViewPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Jobs</h1>
+        
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="careers_export"
+              title="Careers Report"
+              disabled={loading}
+            />
+          )}
+        </div>
       </div>
 
       {/* Controls */}
@@ -225,29 +269,43 @@ export default function CareersViewPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <button
-                        title="Toggle status"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                        onClick={() => toggleStatus(r.id)}
-                      >
-                        ●
-                      </button>
+                      {/* Toggle status - requires edit permission */}
+                      {canEdit && (
+                        <button
+                          title="Toggle status"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                          onClick={() => toggleStatus(r.id)}
+                        >
+                          ●
+                        </button>
+                      )}
 
-                      <Link
-                        href={`/careers/${r.id}/edit`}
-                        title="Edit"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                      >
-                        ✎
-                      </Link>
+                      {/* Edit button - requires edit permission */}
+                      {canEdit && (
+                        <Link
+                          href={`/careers/${r.id}/edit`}
+                          title="Edit"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          ✎
+                        </Link>
+                      )}
 
-                      <button
-                        title="Delete"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                        onClick={() => onDelete(r.id)}
-                      >
-                        🗑
-                      </button>
+                      {/* Delete button - requires delete permission */}
+                      {canDelete && (
+                        <button
+                          title="Delete"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                          onClick={() => onDelete(r.id)}
+                        >
+                          🗑
+                        </button>
+                      )}
+
+                      {/* Show message when no actions available */}
+                      {!canEdit && !canDelete && (
+                        <span className="text-gray-400 text-sm">No actions</span>
+                      )}
                     </div>
                   </td>
                 </tr>

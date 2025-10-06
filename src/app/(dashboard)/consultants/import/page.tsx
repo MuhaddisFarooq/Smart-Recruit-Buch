@@ -2,6 +2,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { notify } from "@/components/ui/notify";
+import RequirePerm from "@/components/auth/RequirePerm";
 
 type ImportResult = {
   ok: boolean;
@@ -13,7 +14,7 @@ type ImportResult = {
 
 const SAMPLE_URL = "/sample-data/consultants_import_sample.xlsx";
 
-export default function ImportConsultantsPage() {
+function ImportConsultantsInner() {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -33,17 +34,14 @@ export default function ImportConsultantsPage() {
       const fd = new FormData();
       fd.append("file", file);
 
-      // Build the real promise that resolves to ImportResult
       const task: Promise<ImportResult> = (async () => {
         const res = await fetch("/api/consultants/import", { method: "POST", body: fd });
-
-        // Try to parse JSON if possible; fallback to text
         const ct = res.headers.get("content-type") || "";
         let body: any = null;
         try {
           body = ct.includes("application/json") ? await res.json() : await res.text();
         } catch {
-          // ignore parse errors; success is inferred from HTTP status
+          // ignore
         }
 
         if (!res.ok) {
@@ -54,7 +52,6 @@ export default function ImportConsultantsPage() {
           throw new Error(message);
         }
 
-        // If server didn't send { ok: true }, assume success on 2xx
         const serverOk =
           typeof body === "object" && body !== null && "ok" in body ? !!(body as any).ok : true;
 
@@ -65,7 +62,6 @@ export default function ImportConsultantsPage() {
           throw new Error(message);
         }
 
-        // Normalize shape for our UI
         const normalized: ImportResult = {
           ok: true,
           inserted:
@@ -79,14 +75,12 @@ export default function ImportConsultantsPage() {
         return normalized;
       })();
 
-      // Show toast around the same promise (ignore its return type)
       notify.promise(task, {
         loading: "Importing consultants…",
         success: "Import completed successfully.",
         error: (e) => (e as Error)?.message || "Import failed.",
       });
 
-      // Await the real result and update UI
       const out = await task;
       setResult(out);
     } catch (err: any) {
@@ -245,5 +239,13 @@ export default function ImportConsultantsPage() {
         )}
       </form>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <RequirePerm moduleKey="consultants" action="import">
+      <ImportConsultantsInner />
+    </RequirePerm>
   );
 }

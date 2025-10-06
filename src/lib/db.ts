@@ -1,5 +1,5 @@
 // src/lib/db.ts
-import mysql from "mysql2/promise";
+import mysql, { OkPacket, ResultSetHeader } from "mysql2/promise";
 
 export const pool = mysql.createPool({
   host: process.env.DB_HOST!,
@@ -14,7 +14,14 @@ export const pool = mysql.createPool({
   timezone: "Z",
 });
 
+/** For SELECT queries */
 export async function query<T = any>(sql: string, params?: any[]) {
   const [rows] = await pool.execute(sql, params);
-  return rows as T[];
+  return rows as T[];  // always array
+}
+
+/** For INSERT / UPDATE / DELETE */
+export async function execute(sql: string, params?: any[]) {
+  const [result] = await pool.execute(sql, params);
+  return result as OkPacket & ResultSetHeader; // gives insertId, affectedRows etc.
 }

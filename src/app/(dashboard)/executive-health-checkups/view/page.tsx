@@ -2,8 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
+import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -23,6 +26,20 @@ export default function ExecutiveHealthCheckupsViewPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const confirm = useConfirm();
+
+  // Get session and permissions
+  const { data: session } = useSession();
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canExport = hasPerm(perms, "ehc", "export");
+
+  // Export configuration
+  const exportColumns = [
+    { key: "id", header: "ID", width: 10 },
+    { key: "title", header: "Title", width: 30 },
+    { key: "price_label", header: "Price Label", width: 20 },
+    { key: "image", header: "Image", width: 25 },
+    { key: "status", header: "Status", width: 12 },
+  ];
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -110,8 +127,20 @@ export default function ExecutiveHealthCheckupsViewPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Executive Health Checkups</h1>
+        
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <ExportButton
+              data={rows}
+              columns={exportColumns}
+              filename="executive_health_checkups_export"
+              title="Executive Health Checkups Report"
+              disabled={loading}
+            />
+          )}
+        </div>
       </div>
 
       {/* Controls */}
