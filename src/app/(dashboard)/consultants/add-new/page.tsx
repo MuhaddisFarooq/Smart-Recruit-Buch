@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { notify } from "@/components/ui/notify";
 import RequirePerm from "@/components/auth/RequirePerm";
+import { convertTo12Hour } from "@/lib/timeHelpers";
 
 type DayKey =
   | "monday"
@@ -28,6 +29,7 @@ type FormState = {
   specialties: string;
   education: string;
   expertise: string;
+  experience: string;
   schedule: Record<DayKey, DaySchedule>;
   employment:
     | "Permanent"
@@ -63,9 +65,9 @@ const dayLabels: { key: DayKey; label: string }[] = [
 // Compress an image to max WxH and quality; returns a Blob
 async function compressImage(
   file: File,
-  maxW = 600,
-  maxH = 600,
-  quality = 0.72
+  maxW = 9999,  // No resizing for high quality
+  maxH = 9999,  // No resizing for high quality
+  quality = 0.98 // High quality 98%
 ): Promise<Blob> {
   const img = document.createElement("img");
   const reader = new FileReader();
@@ -91,10 +93,26 @@ async function compressImage(
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d")!;
+  
+  // Set transparent background for PNG images
+  const isPNG = file.type === "image/png";
+  if (isPNG) {
+    // Keep transparency for PNG
+    ctx.clearRect(0, 0, width, height);
+  } else {
+    // Set white background for non-PNG images
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, width, height);
+  }
+  
   ctx.drawImage(img, 0, 0, width, height);
 
+  // Use PNG format for PNG files to preserve transparency, JPEG for others
+  const outputFormat = isPNG ? "image/png" : "image/jpeg";
+  const outputQuality = isPNG ? 1.0 : quality; // PNG doesn't use quality parameter
+  
   const blob: Blob = await new Promise((res) =>
-    canvas.toBlob((b) => res(b as Blob), "image/jpeg", quality)
+    canvas.toBlob((b) => res(b as Blob), outputFormat, outputQuality)
   );
   return blob;
 }
@@ -102,8 +120,14 @@ async function compressImage(
 // Upload a blob to /api/uploads and return the server filename + url
 async function uploadBlob(blob: Blob, originalName = "image.jpg") {
   const fd = new FormData();
-  const f = new File([blob], originalName.replace(/\.[^.]+$/, ".jpg"), {
-    type: "image/jpeg",
+  
+  // Determine file extension and type based on blob type
+  const isPNG = blob.type === "image/png";
+  const extension = isPNG ? ".png" : ".jpg";
+  const fileName = originalName.replace(/\.[^.]+$/, extension);
+  
+  const f = new File([blob], fileName, {
+    type: blob.type,
   });
   fd.append("file", f);
 
@@ -129,6 +153,7 @@ function AddConsultantInner() {
     specialties: "",
     education: "",
     expertise: "",
+    experience: "",
     schedule: {
       monday: { ...defaultDay },
       tuesday: { ...defaultDay },
@@ -201,7 +226,7 @@ function AddConsultantInner() {
   // Day schedule setter
   const onSchedule =
     (day: DayKey, field: keyof DaySchedule) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       setForm((s) => ({
         ...s,
         schedule: {
@@ -245,18 +270,29 @@ function AddConsultantInner() {
     const out: Record<string, { start: string; end: string }[]> = {};
     for (const { key } of dayLabels) {
       const d = form.schedule[key];
+      console.log(`📋 ${key}:`, {
+        morningStart: d.morningStart,
+        morningEnd: d.morningEnd,
+        eveningStart: d.eveningStart,
+        eveningEnd: d.eveningEnd,
+      });
+      
       const slots: { start: string; end: string }[] = [];
       if (d.morningStart || d.morningEnd) {
-        slots.push({
-          start: d.morningStart || "",
-          end: d.morningEnd || d.morningStart || "",
-        });
+        const morningSlot = {
+          start: d.morningStart ? convertTo12Hour(d.morningStart) : "",
+          end: d.morningEnd ? convertTo12Hour(d.morningEnd) : (d.morningStart ? convertTo12Hour(d.morningStart) : ""),
+        };
+        console.log(`  ➡️ Morning slot for ${key}:`, morningSlot);
+        slots.push(morningSlot);
       }
       if (d.eveningStart || d.eveningEnd) {
-        slots.push({
-          start: d.eveningStart || "",
-          end: d.eveningEnd || d.eveningStart || "",
-        });
+        const eveningSlot = {
+          start: d.eveningStart ? convertTo12Hour(d.eveningStart) : "",
+          end: d.eveningEnd ? convertTo12Hour(d.eveningEnd) : (d.eveningStart ? convertTo12Hour(d.eveningStart) : ""),
+        };
+        console.log(`  ➡️ Evening slot for ${key}:`, eveningSlot);
+        slots.push(eveningSlot);
       }
       out[key] = slots;
     }
@@ -274,6 +310,9 @@ function AddConsultantInner() {
       return;
     }
 
+    const scheduleData = buildScheduleJson();
+    console.log("📅 Schedule being saved:", JSON.stringify(scheduleData, null, 2));
+
     const payload = {
       consultant_id: form.consultantId.trim(),
       cat_name: selectedSub,
@@ -283,7 +322,8 @@ function AddConsultantInner() {
       specialties: form.specialties,
       education: form.education,
       aoe: form.expertise,
-      schedule: buildScheduleJson(),
+      experience: form.experience,
+      schedule: scheduleData,
       profile_pic: uploadedFilename || "",
       employment_status: form.employment,
       doctor_type: form.isSurgeon ? "Surgeon" : "",
@@ -318,6 +358,7 @@ function AddConsultantInner() {
         specialties: "",
         education: "",
         expertise: "",
+        experience: "",
         schedule: {
           monday: { ...defaultDay },
           tuesday: { ...defaultDay },
@@ -472,6 +513,17 @@ function AddConsultantInner() {
                 placeholder="One per line or comma separated"
               />
             </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Experience</label>
+              <textarea
+                rows={4}
+                className="w-full rounded-md border px-3 py-2"
+                value={form.experience}
+                onChange={onText("experience")}
+                placeholder="Years of experience and details"
+              />
+            </div>
           </div>
         </section>
 
@@ -488,29 +540,41 @@ function AddConsultantInner() {
             </div>
 
             {dayLabels.map(({ key, label }) => (
-              <div key={key} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+              <div key={key} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
                 <div className="font-medium">{label}</div>
+                
+                {/* Morning Start */}
                 <input
                   type="time"
-                  className="rounded-md border px-3 py-2"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                   value={form.schedule[key].morningStart}
                   onChange={onSchedule(key, "morningStart")}
                 />
+                
+                {/* Morning End */}
                 <input
                   type="time"
-                  className="rounded-md border px-3 py-2"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                   value={form.schedule[key].morningEnd}
                   onChange={onSchedule(key, "morningEnd")}
                 />
+                
+                {/* Evening Start */}
                 <input
                   type="time"
-                  className="rounded-md border px-3 py-2"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                   value={form.schedule[key].eveningStart}
                   onChange={onSchedule(key, "eveningStart")}
                 />
+                
+                {/* Evening End */}
                 <input
                   type="time"
-                  className="rounded-md border px-3 py-2"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                   value={form.schedule[key].eveningEnd}
                   onChange={onSchedule(key, "eveningEnd")}
                 />

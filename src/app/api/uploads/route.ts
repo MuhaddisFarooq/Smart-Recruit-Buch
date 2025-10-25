@@ -33,13 +33,17 @@ async function maybeCompressImage(
     const sharp = sharpMod(buffer, { failOnError: false });
     const meta = await sharp.metadata().catch(() => ({} as any));
 
-    let maxSide = 1400;              // starting bound for longest edge
-    let quality = 82;                // starting jpeg quality
-    const minSide = 600;             // don't go smaller than this
-    const targetBytes = 350 * 1024;  // ~350KB target
+    // High quality settings - no resizing by default
+    let maxSide = 999999;            // effectively no limit for high quality
+    let quality = 98;                // high-quality 98% for better preservation
+    const targetBytes = 10 * 1024 * 1024;  // ~10MB target (much larger for quality)
+    
+    // Check if this is a PNG image to preserve transparency
+    const isPNG = mime === "image/png" || meta?.format === "png";
 
     const makePipeline = () => {
       let pipe = sharpMod(buffer, { failOnError: false });
+      // Don't resize unless file is enormous (> 999999px)
       if (meta?.width && meta?.height) {
         const w = meta.width!;
         const h = meta.height!;
@@ -52,22 +56,32 @@ async function maybeCompressImage(
           });
         }
       }
-      return pipe.jpeg({ quality, mozjpeg: true });
+      
+      // Use PNG format for PNG images to preserve transparency, JPEG for others
+      if (isPNG) {
+        return pipe.png({ 
+          quality: Math.round(quality), 
+          compressionLevel: 6, // Less aggressive compression for quality
+          progressive: false   // Better for quality 
+        });
+      } else {
+        return pipe.jpeg({ quality, mozjpeg: true });
+      }
     };
 
     let out: Buffer = await makePipeline().toBuffer();
+    
+    // Only compress if file is still very large (over 10MB)
     let attempts = 0;
-
-    while (out.byteLength > targetBytes && attempts < 8) {
-      if (quality > 60) quality -= 7;
-      else if (maxSide > minSide) maxSide -= 150;
-      else break;
+    while (out.byteLength > targetBytes && attempts < 3) {
+      if (quality > 80) quality -= 5;  // Less aggressive quality reduction
+      else break;  // Stop early to preserve quality
 
       out = await makePipeline().toBuffer();
       attempts++;
     }
 
-    return { out, ext: ".jpg" };
+    return { out, ext: isPNG ? ".png" : ".jpg" };
   } catch {
     return { out: buffer, ext: ".jpg" };
   }

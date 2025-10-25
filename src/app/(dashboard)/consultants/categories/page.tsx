@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import RequirePerm from "@/components/auth/RequirePerm";
 import { useSession } from "next-auth/react";
 import { hasPerm, type PermissionMap } from "@/lib/perms-client";
 import ExportButton from "@/components/common/ExportButton";
+import { Button } from "@/components/ui/button";
 
 type Row = {
   id: number;
@@ -14,6 +15,7 @@ type Row = {
   main_cat_id: number | null;
   main_cat_name: string | null;
   cat_description: string | null;
+  cat_img: string | null;
 };
 type MainCat = { id: number; cat_name: string };
 
@@ -35,6 +37,12 @@ function CategoriesInner() {
   const [editing, setEditing] = useState<Row | null>(null);
   const [mains, setMains] = useState<MainCat[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Image upload state for edit dialog
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFilename, setUploadedFilename] = useState<string>("");
 
   const confirm = useConfirm();
 
@@ -102,13 +110,125 @@ function CategoriesInner() {
   function openEdit(row: Row) {
     if (!canEdit) return;
     setEditing(row);
+    // Set initial image preview if exists
+    if (row.cat_img) {
+      setPreview(`/uploads/categories/${row.cat_img}`);
+      setUploadedFilename(row.cat_img);
+    } else {
+      setPreview(null);
+      setUploadedFilename("");
+    }
   }
   function closeEdit() {
     setEditing(null);
+    setPreview(null);
+    setUploadedFilename("");
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  // Image compression and upload functions
+  async function compressToTarget(
+    file: File,
+    maxSideStart = 1200,
+    targetKB = 300,
+    minSide = 600
+  ): Promise<Blob> {
+    const dataURL: string = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result));
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+    const img = document.createElement("img");
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = rej;
+      img.src = dataURL;
+    });
+
+    let maxSide = maxSideStart;
+    let quality = 0.85;
+    
+    const isPNG = file.type === "image/png";
+
+    const draw = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const scale = Math.min(1, maxSide / Math.max(w, h));
+      const nw = Math.max(minSide, Math.floor(w * scale));
+      const nh = Math.max(minSide, Math.floor(h * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = nw;
+      canvas.height = nh;
+      const ctx = canvas.getContext("2d")!;
+      
+      if (!isPNG) {
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, nw, nh);
+      }
+      
+      ctx.drawImage(img, 0, 0, nw, nh);
+
+      return new Promise<Blob | null>((res) => {
+        canvas.toBlob(res, isPNG ? "image/png" : "image/jpeg", quality);
+      });
+    };
+
+    let blob = await draw();
+    if (!blob) throw new Error("Failed to compress");
+
+    while (blob.size > targetKB * 1024 && (maxSide > minSide || quality > 0.5)) {
+      if (maxSide > minSide) maxSide -= 100;
+      else quality -= 0.05;
+      blob = await draw();
+      if (!blob) throw new Error("Failed to compress");
+    }
+
+    return blob;
+  }
+
+  async function uploadBlobToCategories(blob: Blob, original = "category.jpg") {
+    const fd = new FormData();
+    
+    const isPNG = blob.type === "image/png";
+    const extension = isPNG ? ".png" : ".jpg";
+    const fileName = original.replace(/\.[^.]+$/, extension);
+    
+    fd.append(
+      "file",
+      new File([blob], fileName, { type: blob.type })
+    );
+    const r = await fetch("/api/uploads?folder=categories", { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error || `Upload failed (HTTP ${r.status})`);
+    return String(j?.filename || "");
+  }
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null;
+    if (!f) return;
+
+    try {
+      setUploading(true);
+      const compressed = await compressToTarget(f, 1200, 300, 600);
+      setPreview(URL.createObjectURL(compressed));
+      const stored = await uploadBlobToCategories(compressed, f.name);
+      setUploadedFilename(stored);
+      notify.success("Image uploaded.");
+    } catch (err: any) {
+      console.error(err);
+      notify.error(err?.message || "Failed to upload image.");
+      setUploadedFilename("");
+      setPreview(null);
+      if (fileRef.current) fileRef.current.value = "";
+    } finally {
+      setUploading(false);
+    }
   }
 
   // -------- Updater (JSON first; graceful fallbacks) --------
-  async function updateCategory(id: number, data: { cat_name: string; main_cat_id: number; cat_description?: string | null }) {
+  async function updateCategory(id: number, data: { cat_name: string; main_cat_id: number; cat_description?: string | null; cat_img?: string | null }) {
     const jsonBody = JSON.stringify({ id, ...data });
 
     const send = async (method: string, url: string, headers: Record<string, string>, body: BodyInit) => {
@@ -183,6 +303,7 @@ function CategoriesInner() {
     form.set("cat_name", data.cat_name);
     form.set("main_cat_id", String(data.main_cat_id));
     if (data.cat_description !== undefined) form.set("cat_description", data.cat_description ?? "");
+    if (data.cat_img !== undefined) form.set("cat_img", data.cat_img ?? "");
     return await send(
       "POST",
       `/api/consultants/categories?id=${encodeURIComponent(String(id))}`,
@@ -201,6 +322,7 @@ function CategoriesInner() {
         ? null
         : Number(editing.main_cat_id);
     const desc = editing.cat_description ?? null;
+    const catImg = uploadedFilename || null;
 
     if (!name) {
       notify.error("Category name is required.");
@@ -214,7 +336,7 @@ function CategoriesInner() {
     try {
       setSaving(true);
       await notify.promise(
-        updateCategory(editing.id, { cat_name: name, main_cat_id: mainId, cat_description: desc }),
+        updateCategory(editing.id, { cat_name: name, main_cat_id: mainId, cat_description: desc, cat_img: catImg }),
         {
           loading: "Saving category…",
           success: "Category updated.",
@@ -475,6 +597,39 @@ function CategoriesInner() {
                   })
                 }
               />
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">Category Image</label>
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border bg-gray-50">
+                  {preview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={preview} alt="preview" className="h-16 w-16 object-cover" />
+                  ) : (
+                    <span className="text-[11px] text-gray-400">No image</span>
+                  )}
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onPickImage}
+                />
+                <Button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="bg-gray-900 text-white hover:bg-black/80"
+                  disabled={uploading}
+                >
+                  {uploading ? "Uploading…" : "Choose Image"}
+                </Button>
+              </div>
+              {uploading && <span className="text-xs text-gray-500">Uploading…</span>}
+              {!!uploadedFilename && (
+                <span className="break-all text-xs text-gray-600">{uploadedFilename}</span>
+              )}
             </div>
 
             <div className="flex justify-end gap-2">

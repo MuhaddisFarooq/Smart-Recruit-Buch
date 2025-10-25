@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
-import sharp from "sharp";
 import path from "path";
 import { promises as fs } from "fs";
+import { saveOptimizedImage } from "../_helpers/image-processing";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +14,6 @@ async function actorFromSession() {
 }
 
 async function ensureDir(d: string) { await fs.mkdir(d, { recursive: true }); }
-function sanitize(n: string) { return n.replace(/[^a-zA-Z0-9._-]+/g, "_"); }
-async function saveCompressedJpeg(file: File): Promise<string> {
-  const buf = Buffer.from(await file.arrayBuffer());
-  const folder = path.join(process.cwd(), "public", "uploads", "slider");
-  await ensureDir(folder);
-  const base = sanitize(file.name || "slider.jpg").replace(/\.(png|webp|gif|bmp|tiff)$/i, ".jpg");
-  const out = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${base}`;
-  const abs = path.join(folder, out);
-  await sharp(buf).rotate().jpeg({ quality: 82, progressive: true, mozjpeg: true }).toFile(abs);
-  return `slider/${out}`; // -> /uploads/slider/<file>
-}
 
 async function ensureTable() {
   await query(`
@@ -111,7 +100,8 @@ export async function POST(req: NextRequest) {
     }
     if (status !== "active" && status !== "inactive") status = "active";
 
-    const rel = await saveCompressedJpeg(img);
+    // Save with maximum quality - no resizing, 98% quality
+    const rel = await saveOptimizedImage(img, "slider", null, 98);
 
     await query(
       `INSERT INTO sliders (image, start_date, end_date, status, addedBy, addedDate, updatedBy, updatedDate)

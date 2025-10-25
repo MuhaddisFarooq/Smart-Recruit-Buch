@@ -4,8 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { notify } from "@/components/ui/notify";
 import RequirePerm from "@/components/auth/RequirePerm";
+import { parseTime, convertTo12Hour } from "@/lib/timeHelpers";
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+
+type TimeSlot = { 
+  start: string; 
+  end: string;
+};
 
 type Form = {
   consultant_id: string;
@@ -16,7 +22,8 @@ type Form = {
   specialties: string;
   education: string;
   aoe: string;
-  schedule: Record<DayKey, { start: string; end: string }[]>;
+  experience: string;
+  schedule: Record<DayKey, TimeSlot[]>;
   profile_pic: string;           // store "consultants/<file>" in DB
   employment_status: string;
   doctor_type: string;
@@ -52,7 +59,7 @@ async function compressImage(file: File): Promise<Blob> {
     img.src = dataUrl;
   });
 
-  const maxSide = 1024;
+  const maxSide = 9999; // No resizing for high quality
   let { width, height } = img;
   const scale = Math.min(1, maxSide / Math.max(width, height));
   width = Math.round(width * scale);
@@ -63,10 +70,26 @@ async function compressImage(file: File): Promise<Blob> {
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) return file;
+  
+  // Handle transparency for PNG files
+  const isPNG = file.type === "image/png";
+  if (isPNG) {
+    // Keep transparency for PNG
+    ctx.clearRect(0, 0, width, height);
+  } else {
+    // Set white background for non-PNG images
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, width, height);
+  }
+  
   ctx.drawImage(img, 0, 0, width, height);
 
+  // Use PNG format for PNG files to preserve transparency, JPEG for others
+  const outputFormat = isPNG ? "image/png" : "image/jpeg";
+  const outputQuality = isPNG ? 1.0 : 0.98; // High quality 98% for JPEG, PNG doesn't use quality parameter
+
   const blob: Blob = await new Promise((res) =>
-    canvas.toBlob((b) => res(b || file), "image/jpeg", 0.7)
+    canvas.toBlob((b) => res(b || file), outputFormat, outputQuality)
   );
   return blob!;
 }
@@ -76,8 +99,16 @@ async function tryUpload(file: File): Promise<string> {
   try {
     const compressed = (await compressImage(file)) as Blob;
     const fd = new FormData();
-    const outName = file.name.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "") || "photo.jpg";
-    fd.append("file", compressed, outName);
+    
+    // Preserve file extension based on compressed blob type
+    const isPNG = compressed.type === "image/png";
+    const extension = isPNG ? ".png" : ".jpg";
+    const baseName = file.name.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "").replace(/\.[^.]+$/, "") || "photo";
+    const outName = baseName + extension;
+    
+    // Create file with correct MIME type
+    const uploadFile = new File([compressed], outName, { type: compressed.type });
+    fd.append("file", uploadFile);
 
     const r = await fetch("/api/uploads", { method: "POST", body: fd });
     if (r.ok) {
@@ -115,7 +146,18 @@ function EditConsultantInner() {
           try {
             const o = JSON.parse(d?.schedule || "{}");
             const out: any = {};
-            for (const k of days) out[k] = Array.isArray(o?.[k]) ? o[k] : [];
+            for (const k of days) {
+              const daySlots = Array.isArray(o?.[k]) ? o[k] : [];
+              // Parse existing times - convert from 12-hour with AM/PM back to 24-hour
+              out[k] = daySlots.map((slot: any) => {
+                const startParsed = parseTime(slot.start || "");
+                const endParsed = parseTime(slot.end || "");
+                return {
+                  start: startParsed?.time || slot.start || "",
+                  end: endParsed?.time || slot.end || "",
+                };
+              });
+            }
             return out;
           } catch {
             return { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [] };
@@ -131,6 +173,7 @@ function EditConsultantInner() {
           specialties: d?.specialties ?? "",
           education: d?.education ?? "",
           aoe: d?.aoe ?? "",
+          experience: d?.experience ?? "",
           schedule: scheduleObj,
           profile_pic: d?.profile_pic ?? "",
           employment_status: d?.employment_status ?? "",
@@ -175,6 +218,18 @@ function EditConsultantInner() {
         const stored = await tryUpload(photoFile);
         payload.profile_pic = stored; // "consultants/<fname>"
       }
+
+      // Convert schedule times to include AM/PM
+      const scheduleWithAMPM: Record<string, { start: string; end: string }[]> = {};
+      for (const [day, slots] of Object.entries(payload.schedule)) {
+        scheduleWithAMPM[day] = slots.map((slot) => ({
+          start: slot.start ? convertTo12Hour(slot.start) : "",
+          end: slot.end ? convertTo12Hour(slot.end) : "",
+        }));
+      }
+      payload.schedule = scheduleWithAMPM as any;
+      
+      console.log("📅 Schedule being saved:", JSON.stringify(scheduleWithAMPM, null, 2));
 
       const r = await fetch(`/api/consultants/${id}`, {
         method: "PATCH",
@@ -266,32 +321,51 @@ function EditConsultantInner() {
                     value={form.education}
                     onChange={(e) => setForm({ ...form, education: e.target.value })}/>
         </div>
+        
+        <div>
+          <label className="text-sm font-medium">Experience</label>
+          <textarea rows={3} className="mt-1 w-full rounded-md border px-3 py-2"
+                    value={form.experience}
+                    onChange={(e) => setForm({ ...form, experience: e.target.value })}
+                    placeholder="Years of experience and details"/>
+        </div>
 
         {/* Timings */}
         <div className="rounded-lg border p-4">
           <h2 className="text-lg font-semibold">Please Enter Consultant Timings Below…</h2>
           <div className="mt-3 grid grid-cols-1 gap-3">
             {days.map((d) => (
-              <div key={d} className="grid grid-cols-1 items-center gap-3 md:grid-cols-5">
+              <div key={d} className="grid grid-cols-1 items-center gap-2 md:grid-cols-5">
                 <div className="font-medium capitalize">{d}</div>
                 {Array.from({ length: 2 }).map((_, idx) => {
                   const slot = form.schedule[d][idx] || { start: "", end: "" };
                   return (
                     <div key={idx} className="col-span-2 grid grid-cols-2 gap-2">
-                      <input type="time" className="rounded-md border px-3 py-2"
-                             value={slot.start}
-                             onChange={(e) => {
-                               const next = { ...form };
-                               next.schedule[d][idx] = { ...slot, start: e.target.value };
-                               setForm(next);
-                             }}/>
-                      <input type="time" className="rounded-md border px-3 py-2"
-                             value={slot.end}
-                             onChange={(e) => {
-                               const next = { ...form };
-                               next.schedule[d][idx] = { ...slot, end: e.target.value };
-                               setForm(next);
-                             }}/>
+                      {/* Start Time */}
+                      <input 
+                        type="time"
+                        step="60"
+                        className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                        value={slot.start}
+                        onChange={(e) => {
+                          const next = { ...form };
+                          next.schedule[d][idx] = { ...slot, start: e.target.value };
+                          setForm(next);
+                        }}
+                      />
+                      
+                      {/* End Time */}
+                      <input 
+                        type="time"
+                        step="60"
+                        className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                        value={slot.end}
+                        onChange={(e) => {
+                          const next = { ...form };
+                          next.schedule[d][idx] = { ...slot, end: e.target.value };
+                          setForm(next);
+                        }}
+                      />
                     </div>
                   );
                 })}

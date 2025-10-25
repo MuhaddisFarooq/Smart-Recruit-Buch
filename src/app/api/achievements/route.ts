@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import sharp from "sharp";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { saveOptimizedImage } from "../_helpers/image-processing";
 
 export const dynamic = "force-dynamic";
 
@@ -64,26 +64,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Image is required" }, { status: 400 });
     }
 
-    const arr = await file.arrayBuffer();
-    const input = Buffer.from(arr as ArrayBuffer);
-
-    const uploadsDir = path.join(process.cwd(), "public", "uploads", "achievements");
-    await ensureDir(uploadsDir);
-
-    const base = sanitizeName(file.name || "image.jpg");
-    const outName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${base}`.replace(
-      /\.(png|webp|gif|bmp|tiff)$/i,
-      ".jpg"
-    );
-    const absOut = path.join(uploadsDir, outName);
-
-    // compress → jpg (usually KBs)
-    await sharp(input)
-      .rotate()
-      .jpeg({ quality: 82, progressive: true, mozjpeg: true })
-      .toFile(absOut);
-
-    const rel = `achievements/${outName}`;
+    // Use high-quality image processing that preserves PNG transparency
+    const rel = await saveOptimizedImage(file, "achievements", null, 98);
     const actor = await actorFromSession();
 
     await query(

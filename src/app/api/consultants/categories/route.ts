@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
       main_cat_id: number | null;
       main_cat_name: string | null;
       cat_description: string | null;
+      cat_img: string | null;
     }>(
       `
       SELECT
@@ -98,6 +99,7 @@ export async function GET(req: NextRequest) {
         c.cat_name,
         c.main_cat_id,
         c.cat_description,
+        c.cat_img,
         m.cat_name AS main_cat_name
       FROM consultant_category c
       LEFT JOIN consultant_main_category m ON m.id = c.main_cat_id

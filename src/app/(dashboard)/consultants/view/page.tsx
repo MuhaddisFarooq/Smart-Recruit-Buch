@@ -5,8 +5,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { hasPerm, type PermissionMap } from "@/lib/perms-client";
-
-// ✅ imports for confirm modal + toast
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { notify } from "@/components/ui/notify";
 import RequirePerm from "@/components/auth/RequirePerm";
@@ -19,6 +17,8 @@ type Row = {
   cat_name: string | null;
   profile_pic: string | null;
   status: "active" | "inactive";
+  fee: number | null;                  // Salary / Fee
+  employment_status: string | null;    // Employment
 };
 
 type ApiListResponse = {
@@ -30,7 +30,6 @@ type ApiListResponse = {
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
-/** Image path normalizer -> served URL */
 function toPicUrl(src?: string | null): string | undefined {
   if (!src) return undefined;
   let s = String(src).trim().replace(/\\/g, "/").replace(/^public\//i, "");
@@ -42,11 +41,16 @@ function toPicUrl(src?: string | null): string | undefined {
   return `/uploads/consultants/${s}`;
 }
 
+function formatAmount(v: unknown): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
 function ViewConsultantsInner() {
   const { data } = useSession();
   const perms = (data?.user as any)?.perms as PermissionMap | undefined;
 
-  const canView   = hasPerm(perms, "consultants", "view");
   const canNew    = hasPerm(perms, "consultants", "new");
   const canEdit   = hasPerm(perms, "consultants", "edit");
   const canDelete = hasPerm(perms, "consultants", "delete");
@@ -93,7 +97,7 @@ function ViewConsultantsInner() {
   }
 
   useEffect(() => {
-    load(); /* eslint-disable-next-line */
+    load(); // eslint-disable-next-line
   }, [page, pageSize]);
 
   useEffect(() => {
@@ -158,6 +162,8 @@ function ViewConsultantsInner() {
     { key: "consultant_id", header: "Consultant ID", width: 15 },
     { key: "name", header: "Name", width: 20 },
     { key: "cat_name", header: "Category", width: 20 },
+    { key: "fee", header: "Salary", width: 12 },
+    { key: "employment_status", header: "Employment", width: 16 },
     { key: "status", header: "Status", width: 12 },
   ];
 
@@ -175,6 +181,53 @@ function ViewConsultantsInner() {
       <div className="h-12 w-12 rounded-full bg-gray-200 border" />
     );
   };
+
+  /** ⬇️ Avoid whitespace text-child in <tr> by returning cells as an array */
+  const renderCells = (r: Row) => ([
+    <td key="name" className="px-4 py-3">{r.name}</td>,
+    <td key="cat" className="px-4 py-3">{r.cat_name ?? "—"}</td>,
+    <td key="pic" className="px-4 py-3"><Picture src={r.profile_pic} alt={r.name} /></td>,
+    <td key="fee" className="px-4 py-3">{formatAmount(r.fee)}</td>,
+    <td key="emp" className="px-4 py-3">{r.employment_status || "—"}</td>,
+    <td key="status" className="px-4 py-3">
+      <span className={
+        r.status === "active"
+          ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+          : "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"
+      }>
+        {r.status === "active" ? "Active" : "Inactive"}
+      </span>
+    </td>,
+    <td key="actions" className="px-4 py-3">
+      {(!canEdit && !canDelete) ? (
+        <span className="text-gray-400">—</span>
+      ) : (
+        <div className="flex items-center gap-3">
+          {canEdit && (
+            <button
+              title="Toggle status"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+              onClick={() => toggleStatus(r.id)}
+            >●</button>
+          )}
+          {canEdit && (
+            <Link
+              href={`/consultants/${r.id}/edit`}
+              title="Edit"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+            >✎</Link>
+          )}
+          {canDelete && (
+            <button
+              title="Delete"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+              onClick={() => onDelete(r.id)}
+            >🗑</button>
+          )}
+        </div>
+      )}
+    </td>,
+  ]);
 
   return (
     <div className="p-6">
@@ -236,59 +289,21 @@ function ViewConsultantsInner() {
               <th className="px-4 py-3 text-left font-medium">Name</th>
               <th className="px-4 py-3 text-left font-medium">Category</th>
               <th className="px-4 py-3 text-left font-medium">Picture</th>
+              <th className="px-4 py-3 text-left font-medium">Salary</th>
+              <th className="px-4 py-3 text-left font-medium">Employment</th>
               <th className="px-4 py-3 text-left font-medium">Status</th>
               <th className="px-4 py-3 text-left font-medium">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-500">Loading…</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-500">Loading…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-500">No consultants found.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-500">No consultants found.</td></tr>
             ) : (
               rows.map((r, idx) => (
                 <tr key={r.id} className={idx % 2 ? "bg-white" : "bg-gray-50/50"}>
-                  <td className="px-4 py-3">{r.name}</td>
-                  <td className="px-4 py-3">{r.cat_name ?? "-"}</td>
-                  <td className="px-4 py-3"><Picture src={r.profile_pic} alt={r.name} /></td>
-                  <td className="px-4 py-3">
-                    <span className={r.status === "active"
-                        ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-                        : "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"}>
-                      {r.status === "active" ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {(!canEdit && !canDelete) ? (
-                      <span className="text-gray-400">—</span>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        {canEdit && (
-                          <button
-                            title="Toggle status"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                            onClick={() => toggleStatus(r.id)}
-                          >●</button>
-                        )}
-
-                        {canEdit && (
-                          <Link
-                            href={`/consultants/${r.id}/edit`}
-                            title="Edit"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                          >✎</Link>
-                        )}
-
-                        {canDelete && (
-                          <button
-                            title="Delete"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                            onClick={() => onDelete(r.id)}
-                          >🗑</button>
-                        )}
-                      </div>
-                    )}
-                  </td>
+                  {renderCells(r)}
                 </tr>
               ))
             )}
@@ -320,8 +335,8 @@ function ViewConsultantsInner() {
             }
             return (
               <button key={p}
-                      onClick={() => setPage(p)}
-                      className={p === page ? "rounded-md bg-lime-600 px-3 py-1 text-white" : "rounded-md border bg-white px-3 py-1 hover:bg-gray-50"}>
+                onClick={() => setPage(p)}
+                className={p === page ? "rounded-md bg-lime-600 px-3 py-1 text-white" : "rounded-md border bg-white px-3 py-1 hover:bg-gray-50"}>
                 {p}
               </button>
             );

@@ -11,8 +11,7 @@ type Form = {
   consultations: string;
   cardiology_tests: string;
   radiology_tests: string;
-  lab_tests_left: string;
-  lab_tests_right: string;
+  lab_tests: string;
   instructions: string;
   status?: "active" | "inactive";
 };
@@ -49,8 +48,7 @@ export default function EditExecutiveHealthCheckupPage() {
           consultations: d?.consultations ?? "",
           cardiology_tests: d?.cardiology_tests ?? "",
           radiology_tests: d?.radiology_tests ?? "",
-          lab_tests_left: d?.lab_tests_left ?? "",
-          lab_tests_right: d?.lab_tests_right ?? "",
+          lab_tests: d?.lab_tests ?? "",
           instructions: d?.instructions ?? "",
           status: d?.status === "inactive" ? "inactive" : "active",
         });
@@ -81,8 +79,7 @@ export default function EditExecutiveHealthCheckupPage() {
         fd.append("consultations", form.consultations);
         fd.append("cardiology_tests", form.cardiology_tests);
         fd.append("radiology_tests", form.radiology_tests);
-        fd.append("lab_tests_left", form.lab_tests_left);
-        fd.append("lab_tests_right", form.lab_tests_right);
+        fd.append("lab_tests", form.lab_tests);
         fd.append("instructions", form.instructions);
         if (form.status) fd.append("status", form.status);
 
@@ -177,8 +174,7 @@ export default function EditExecutiveHealthCheckupPage() {
           {TA("consultations", "Consultations")}
           {TA("cardiology_tests", "Cardiology Tests")}
           {TA("radiology_tests", "Radiology Tests")}
-          {TA("lab_tests_left", "Laboratory Tests (Left column)")}
-          {TA("lab_tests_right", "Laboratory Tests (Right column)")}
+          {TA("lab_tests", "Laboratory Tests")}
         </div>
 
         {TA("instructions", "Instructions", "One instruction per line")}

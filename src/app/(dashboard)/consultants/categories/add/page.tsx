@@ -46,6 +46,9 @@ function AddCategoryInner() {
 
     let maxSide = maxSideStart;
     let quality = 0.85;
+    
+    // Check if this is a PNG to preserve transparency
+    const isPNG = file.type === "image/png";
 
     const draw = () => {
       const ratio = Math.min(maxSide / img.width, maxSide / img.height, 1);
@@ -55,9 +58,25 @@ function AddCategoryInner() {
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d")!;
+      
+      // Handle transparency for PNG files
+      if (isPNG) {
+        // Keep transparency for PNG
+        ctx.clearRect(0, 0, w, h);
+      } else {
+        // Set white background for non-PNG images
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, w, h);
+      }
+      
       ctx.drawImage(img, 0, 0, w, h);
+      
+      // Use PNG format for PNG files to preserve transparency, JPEG for others
+      const outputFormat = isPNG ? "image/png" : "image/jpeg";
+      const outputQuality = isPNG ? 1.0 : quality; // PNG doesn't use quality parameter
+      
       return new Promise<Blob>((resolve) =>
-        canvas.toBlob((b) => resolve(b as Blob), "image/jpeg", quality)
+        canvas.toBlob((b) => resolve(b as Blob), outputFormat, outputQuality)
       );
     };
 
@@ -72,9 +91,15 @@ function AddCategoryInner() {
 
   async function uploadBlobToCategories(blob: Blob, original = "category.jpg") {
     const fd = new FormData();
+    
+    // Preserve file extension based on blob type
+    const isPNG = blob.type === "image/png";
+    const extension = isPNG ? ".png" : ".jpg";
+    const fileName = original.replace(/\.[^.]+$/, extension);
+    
     fd.append(
       "file",
-      new File([blob], original.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" })
+      new File([blob], fileName, { type: blob.type })
     );
     const r = await fetch("/api/uploads?folder=categories", { method: "POST", body: fd });
     const j = await r.json().catch(() => ({}));

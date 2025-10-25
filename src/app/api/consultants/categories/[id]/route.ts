@@ -40,9 +40,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       main_cat_id: number | null;
       main_cat_name: string | null;
       cat_description: string | null;
+      cat_img: string | null;
     }>(
       `
-      SELECT c.id, c.cat_name, c.main_cat_id, c.cat_description, m.cat_name AS main_cat_name
+      SELECT c.id, c.cat_name, c.main_cat_id, c.cat_description, c.cat_img, m.cat_name AS main_cat_name
       FROM consultant_category c
       LEFT JOIN consultant_main_category m ON m.id = c.main_cat_id
       WHERE c.id = ?
@@ -78,6 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const catNameRaw   = b.cat_name ?? b.name;
     const mainRaw      = b.main_cat_id ?? b.mainCatId ?? b.main_id ?? b.mainCategoryId;
     const descRaw      = b.cat_description ?? b.description;
+    const catImgRaw    = b.cat_img;
 
     const sets: string[] = [];
     const args: any[] = [];
@@ -104,12 +106,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       args.push(desc);
     }
 
+    if (catImgRaw !== undefined) {
+      const catImg = catImgRaw == null || catImgRaw === "" ? null : String(catImgRaw).trim();
+      sets.push("cat_img = ?");
+      args.push(catImg);
+    }
+
     if (!sets.length) return NextResponse.json({ ok: true, message: "nothing to update" });
 
     await query(`UPDATE consultant_category SET ${sets.join(", ")} WHERE id = ?`, [...args, id]);
 
-    const after = await query<{ id: number; cat_name: string; main_cat_id: number | null; cat_description: string | null }>(
-      "SELECT id, cat_name, main_cat_id, cat_description FROM consultant_category WHERE id = ? LIMIT 1",
+    const after = await query<{ id: number; cat_name: string; main_cat_id: number | null; cat_description: string | null; cat_img: string | null }>(
+      "SELECT id, cat_name, main_cat_id, cat_description, cat_img FROM consultant_category WHERE id = ? LIMIT 1",
       [id]
     );
 

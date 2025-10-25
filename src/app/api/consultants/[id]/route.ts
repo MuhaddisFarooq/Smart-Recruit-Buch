@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth/options";
 import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // ✅ require Node APIs for mysql2
+export const runtime = "nodejs";
 
 // GET /api/consultants/[id]
 export async function GET(
@@ -14,7 +14,6 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 🔒 Require "view"
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const perms = (session.user as any)?.perms;
@@ -55,7 +54,6 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 🔒 Require "edit"
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const perms = (session.user as any)?.perms;
@@ -81,7 +79,6 @@ export async function PATCH(
          WHERE id = ?`,
         [actorEmail, id]
       );
-
       const s = await query<{ status: "active" | "inactive" }>(
         "SELECT status FROM consultant WHERE id = ? LIMIT 1",
         [id]
@@ -107,6 +104,9 @@ export async function PATCH(
     if (body.education      !== undefined) set("education",   String(body.education   || "").trim() || null);
     if (body.aoe !== undefined || body.expertise !== undefined) {
       set("aoe", String((body.aoe ?? body.expertise) || "").trim() || null);
+    }
+    if (body.experience !== undefined) {
+      set("experience", String(body.experience || "").trim() || null);
     }
 
     if (body.schedule !== undefined) {
@@ -145,7 +145,6 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 🔒 Require "delete"
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const perms = (session.user as any)?.perms;

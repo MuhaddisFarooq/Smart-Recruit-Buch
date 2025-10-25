@@ -2,37 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
-import sharp from "sharp";
 import path from "path";
 import { promises as fs } from "fs";
+import { saveOptimizedImage } from "../../_helpers/image-processing";
 
 export const dynamic = "force-dynamic";
 
 async function actorFromSession() {
   const session = await getServerSession(authOptions).catch(() => null);
   return session?.user?.email || session?.user?.name || "system";
-}
-
-function sanitizeName(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
-}
-async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-}
-async function saveCompressedJpeg(file: File): Promise<string> {
-  const arr = await file.arrayBuffer();
-  const input = Buffer.from(arr as ArrayBuffer);
-  const uploadsDir = path.join(process.cwd(), "public", "uploads", "executive");
-  await ensureDir(uploadsDir);
-
-  const base = sanitizeName(file.name || "image.jpg");
-  const outName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${base}`.replace(
-    /\.(png|webp|gif|bmp|tiff)$/i,
-    ".jpg"
-  );
-  const absOut = path.join(uploadsDir, outName);
-  await sharp(input).rotate().jpeg({ quality: 82, progressive: true, mozjpeg: true }).toFile(absOut);
-  return `executive/${outName}`;
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -93,8 +71,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     let consultations: string | undefined;
     let cardiology_tests: string | undefined;
     let radiology_tests: string | undefined;
-    let lab_tests_left: string | undefined;
-    let lab_tests_right: string | undefined;
+    let lab_tests: string | undefined;
     let instructions: string | undefined;
     let status: string | undefined;
 
@@ -106,14 +83,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if (form.has("consultations")) consultations = String(form.get("consultations") || "").trim();
       if (form.has("cardiology_tests")) cardiology_tests = String(form.get("cardiology_tests") || "").trim();
       if (form.has("radiology_tests")) radiology_tests = String(form.get("radiology_tests") || "").trim();
-      if (form.has("lab_tests_left")) lab_tests_left = String(form.get("lab_tests_left") || "").trim();
-      if (form.has("lab_tests_right")) lab_tests_right = String(form.get("lab_tests_right") || "").trim();
+      if (form.has("lab_tests")) lab_tests = String(form.get("lab_tests") || "").trim();
       if (form.has("instructions")) instructions = String(form.get("instructions") || "").trim();
       if (form.has("status")) status = String(form.get("status") || "").trim();
 
       const imageFile = form.get("image") as File | null;
       if (imageFile && imageFile.size > 0) {
-        imageRel = await saveCompressedJpeg(imageFile);
+        imageRel = await saveOptimizedImage(imageFile, "executive", null, 98);
 
         // delete old image
         const old = await query<{ image: string | null }>(
@@ -134,8 +110,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if (b.consultations !== undefined) consultations = String(b.consultations || "").trim();
       if (b.cardiology_tests !== undefined) cardiology_tests = String(b.cardiology_tests || "").trim();
       if (b.radiology_tests !== undefined) radiology_tests = String(b.radiology_tests || "").trim();
-      if (b.lab_tests_left !== undefined) lab_tests_left = String(b.lab_tests_left || "").trim();
-      if (b.lab_tests_right !== undefined) lab_tests_right = String(b.lab_tests_right || "").trim();
+      if (b.lab_tests !== undefined) lab_tests = String(b.lab_tests || "").trim();
       if (b.instructions !== undefined) instructions = String(b.instructions || "").trim();
       if (b.status !== undefined) status = String(b.status || "").trim();
       // (no image in JSON path)
@@ -149,8 +124,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (consultations !== undefined) { sets.push("consultations=?"); args.push(consultations); }
     if (cardiology_tests !== undefined) { sets.push("cardiology_tests=?"); args.push(cardiology_tests); }
     if (radiology_tests !== undefined) { sets.push("radiology_tests=?"); args.push(radiology_tests); }
-    if (lab_tests_left !== undefined) { sets.push("lab_tests_left=?"); args.push(lab_tests_left); }
-    if (lab_tests_right !== undefined) { sets.push("lab_tests_right=?"); args.push(lab_tests_right); }
+    if (lab_tests !== undefined) { sets.push("lab_tests=?"); args.push(lab_tests); }
     if (instructions !== undefined) { sets.push("instructions=?"); args.push(instructions); }
     if (status !== undefined) { sets.push("status=?"); args.push(status); }
 

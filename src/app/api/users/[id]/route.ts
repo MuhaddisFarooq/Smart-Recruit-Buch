@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { query, execute } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
-import sharp from "sharp";
 import path from "path";
 import { promises as fs } from "fs";
 import bcrypt from "bcryptjs";
+import { saveOptimizedImage } from "../../_helpers/image-processing";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs"; // ensure Node runtime
@@ -22,16 +22,7 @@ async function requireActor() {
   return { actor: s.user.email || s.user.name || "system" } as const;
 }
 
-async function saveCompressedJpeg(file: File): Promise<string> {
-  const buf = Buffer.from(await file.arrayBuffer());
-  const folder = path.join(process.cwd(), "public", "uploads", "users");
-  await ensureDir(folder);
-  const base = sanitize(file.name || "user.jpg").replace(/\.(png|webp|gif|bmp|tiff)$/i, ".jpg");
-  const out = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${base}`;
-  const abs = path.join(folder, out);
-  await sharp(buf).rotate().jpeg({ quality: 82, progressive: true, mozjpeg: true }).toFile(abs);
-  return `users/${out}`;
-}
+
 
 // cache column presence
 let hasGroupIdCol: boolean | undefined;
@@ -121,7 +112,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
       const file = fd.get("picture") as File | null;
       if (file && file.size > 0) {
-        pictureRel = await saveCompressedJpeg(file);
+        pictureRel = await saveOptimizedImage(file, "users", null, 98);
         const old = await query<{ picture: string | null }>("SELECT picture FROM users WHERE id=? LIMIT 1", [num]);
         const oldRel = old[0]?.picture;
         if (oldRel) {

@@ -15,6 +15,7 @@ export type ModuleKey =
   | "hr_training"
   | "fertility_treatment"
   | "blogs"
+  | "pathology"
   | "users";
 
 export const MODULES: { key: ModuleKey; label: string }[] = [
@@ -33,5 +34,6 @@ export const MODULES: { key: ModuleKey; label: string }[] = [
   { key: "hr_training",         label: "HR Training" },
   { key: "fertility_treatment", label: "Fertility Treatment" },
   { key: "blogs",               label: "Blogs" },
+  { key: "pathology",           label: "Pathology" },
   { key: "users",               label: "Users" },
 ];

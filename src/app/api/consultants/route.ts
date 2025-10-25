@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth/options";
 import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // ✅ require Node APIs for mysql2
+export const runtime = "nodejs";
 
 // normalize comma/newline separated text into newline-separated string
 function normalizeList(input: unknown): string | null {
@@ -56,7 +56,6 @@ export async function GET(req: NextRequest) {
 
     const where: string[] = [];
     const params: any[] = [];
-
     if (search) {
       where.push("(c.name LIKE ? OR c.cat_name LIKE ?)");
       params.push(`%${search}%`, `%${search}%`);
@@ -69,15 +68,27 @@ export async function GET(req: NextRequest) {
     );
     const total = totalRows[0]?.cnt ?? 0;
 
+    // ⬇️ Include consultant_id, fee (Salary) and employment_status
     const rows = await query<{
       id: number;
+      consultant_id: string;
       name: string;
       cat_name: string | null;
       profile_pic: string | null;
       status: "active" | "inactive";
+      fee: number | null;
+      employment_status: string | null;
     }>(
       `
-      SELECT c.id, c.name, c.cat_name, c.profile_pic, c.status
+      SELECT
+        c.id,
+        c.consultant_id,
+        c.name,
+        c.cat_name,
+        c.profile_pic,
+        c.status,
+        c.fee,
+        c.employment_status
       FROM consultant c
       ${whereSql}
       ORDER BY c.id ASC
@@ -93,6 +104,15 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * POST /api/consultants
+ * Body (JSON):
+ * {
+ *   consultant_id, cat_name, name, fee, dcd,
+ *   specialties, education, aoe, schedule (object),
+ *   profile_pic, employment_status, doctor_type
+ * }
+ */
 export async function POST(req: NextRequest) {
   try {
     // 🔒 Require "new"
@@ -120,20 +140,21 @@ export async function POST(req: NextRequest) {
     const specialtiesArr = toSpecialtiesArray(b.specialties);
     const educationText = normalizeList(b.education);
     const aoeText = normalizeList(b.aoe);
+    const experienceText = String(b.experience ?? "").trim() || null;
     const scheduleJson = normalizeSchedule(b.schedule);
 
     const sql = `
       INSERT INTO consultant
       (
         consultant_id, cat_name, name, fee, dcd,
-        specialties, education, aoe, schedule,
+        specialties, education, aoe, experience, schedule,
         profile_pic, employment_status, doctor_type,
         status, addedBy, addedDate
       )
       VALUES
       (
         ?, ?, ?, ?, ?,
-        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
         ?, ?, ?,
         'active', ?, NOW()
       )
@@ -149,6 +170,7 @@ export async function POST(req: NextRequest) {
       JSON.stringify(specialtiesArr),
       educationText,
       aoeText,
+      experienceText,
       scheduleJson,
 
       String(b.profile_pic ?? ""),

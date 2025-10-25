@@ -1,29 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import sharp from "sharp";
 import path from "path";
 import { promises as fs } from "fs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { saveOptimizedImage } from "../_helpers/image-processing";
 
 export const dynamic = "force-dynamic";
 
 async function actorFromSession() {
   const s = await getServerSession(authOptions).catch(() => null);
   return s?.user?.email || s?.user?.name || "system";
-}
-
-async function ensureDir(d: string) { await fs.mkdir(d, { recursive: true }); }
-function sanitize(n: string) { return n.replace(/[^a-zA-Z0-9._-]+/g, "_"); }
-async function saveCompressedJpeg(file: File): Promise<string> {
-  const buf = Buffer.from(await file.arrayBuffer());
-  const folder = path.join(process.cwd(), "public", "uploads", "clinical");
-  await ensureDir(folder);
-  const base = sanitize(file.name || "image.jpg").replace(/\.(png|webp|gif|bmp|tiff)$/i, ".jpg");
-  const out = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${base}`;
-  const abs = path.join(folder, out);
-  await sharp(buf).rotate().jpeg({ quality: 82, progressive: true, mozjpeg: true }).toFile(abs);
-  return `clinical/${out}`; // -> /uploads/clinical/<file>
 }
 
 async function ensureTable() {
@@ -104,7 +91,7 @@ export async function POST(req: NextRequest) {
     if (!heading_name) return NextResponse.json({ error: "heading_name is required." }, { status: 400 });
 
     let picture: string | null = null;
-    if (file && file.size > 0) picture = await saveCompressedJpeg(file);
+    if (file && file.size > 0) picture = await saveOptimizedImage(file, "clinical", null, 98);
 
     // Force status to 'active' on creation
     await query(

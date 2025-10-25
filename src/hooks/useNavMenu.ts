@@ -16,6 +16,7 @@ import {
   BookOpen,
   Users as UsersIcon,
   Newspaper, // <-- for Blogs
+  TestTube, // <-- for Pathology
 } from "lucide-react";
 
 import type { PermissionMap } from "@/lib/perms-client";
@@ -187,6 +188,18 @@ export const navMain: NavItem[] = [
     ],
   },
 
+  /* ---------------- Pathology (NEW) ---------------- */
+  {
+    title: "Pathology",
+    url: "#",
+    icon: TestTube,
+    isActive: true,
+    items: [
+      { title: "View", url: "/pathology/view", isActive: true },
+      { title: "Add Test", url: "/pathology/add-new", isActive: true },
+    ],
+  },
+
   {
     title: "Users",
     url: "#",
@@ -217,7 +230,8 @@ const moduleKeyByTitle: Record<string, string> = {
   Publications: "publications",
   "HR Training": "hr_training",
   "Fertility Treatment": "fertility_treatments",
-  Blogs: "blogs", // <-- NEW permission module
+  Blogs: "blogs",
+  Pathology: "pathology", // <-- NEW permission module
   Users: "users",
 };
 

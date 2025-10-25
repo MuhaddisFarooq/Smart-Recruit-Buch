@@ -169,6 +169,7 @@
   body {
     @apply bg-background text-foreground;
   }
+}
 
 /* global.css or styles.css */
 .custom-scroll {
@@ -204,5 +205,25 @@
   height: 0;
 }
 
+/* Force 24-hour time format for time inputs */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.3) sepia(1) saturate(3) hue-rotate(180deg);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
 
+input[type="time"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
+input[type="time"] {
+  /* Force 24-hour format */
+  -webkit-appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* Hide AM/PM from time picker */
+input[type="time"]::-webkit-datetime-edit-ampm-field {
+  display: none;
 }
