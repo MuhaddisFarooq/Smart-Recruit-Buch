@@ -28,8 +28,14 @@ export default function AddBlogPage() {
   }, [session, canNew, router]);
 
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
   const [descriptionHtml, setDescriptionHtml] = useState("");
   const [file, setFile] = useState<File | null>(null);
+
+  // Category suggestions
+  const [categoryList, setCategoryList] = useState<string[]>([]);
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const [filteredCategories, setFilteredCategories] = useState<string[]>([]);
 
   // one field: Search #Tags
   const [tagQuery, setTagQuery] = useState("");
@@ -42,6 +48,31 @@ export default function AddBlogPage() {
   const [shareLinkedIn, setShareLinkedIn] = useState(false);
 
   const [saving, setSaving] = useState(false);
+
+  // Fetch existing categories on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/blogs/categories", { cache: "no-store" });
+        const j = await res.json();
+        if (res.ok) setCategoryList(j.categories || []);
+      } catch (err) {
+        console.error("Failed to load categories:", err);
+      }
+    })();
+  }, []);
+
+  // Filter categories based on input
+  useEffect(() => {
+    if (!category.trim()) {
+      setFilteredCategories(categoryList);
+    } else {
+      const filtered = categoryList.filter((cat) =>
+        cat.toLowerCase().includes(category.toLowerCase())
+      );
+      setFilteredCategories(filtered);
+    }
+  }, [category, categoryList]);
 
   // fetch hashtag suggestions
   useEffect(() => {
@@ -81,6 +112,7 @@ export default function AddBlogPage() {
       setSaving(true);
       const fd = new FormData();
       fd.append("title", title.trim());
+      fd.append("category", category.trim());
       fd.append("description_html", descriptionHtml);
       fd.append("featured_post", featured ? "1" : "0");           // ✅ featured restored
       fd.append("share_linkedin", shareLinkedIn ? "1" : "0");     // (optional flag for backend/future)
@@ -101,7 +133,7 @@ export default function AddBlogPage() {
       }
 
       // reset
-      setTitle(""); setDescriptionHtml(""); setFile(null);
+      setTitle(""); setCategory(""); setDescriptionHtml(""); setFile(null);
       setTagQuery(""); setSuggestions([]); setOpenSuggest(false);
       setFeatured(false); setShareLinkedIn(false);
     } catch (err: any) {
@@ -125,6 +157,38 @@ export default function AddBlogPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+          </div>
+
+          <div className="relative">
+            <label className="mb-1 block text-sm font-medium">Category</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              placeholder="Enter blog category (e.g., Healthcare, Technology, News)"
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setShowCategorySuggestions(true);
+              }}
+              onFocus={() => setShowCategorySuggestions(true)}
+              onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
+            />
+            {showCategorySuggestions && filteredCategories.length > 0 && (
+              <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-white shadow-lg">
+                {filteredCategories.map((cat, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                    onMouseDown={() => {
+                      setCategory(cat);
+                      setShowCategorySuggestions(false);
+                    }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Search #Tags (with suggestions + insert) */}

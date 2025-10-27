@@ -10,6 +10,7 @@ import CKEditor4 from "@/components/CKEditor4";
 type Blog = {
   id: number;
   title: string;
+  category?: string | null;
   description_html: string | null;
   file_path: string | null;
   featured_post: 0 | 1;
@@ -28,12 +29,18 @@ export default function EditBlogPage() {
   const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
   const [html, setHtml] = useState("");
   const [featured, setFeatured] = useState(false);
   const [shareLinkedIn, setShareLinkedIn] = useState(false);
 
   const [existingFile, setExistingFile] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+
+  // Category suggestions
+  const [categoryList, setCategoryList] = useState<string[]>([]);
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const [filteredCategories, setFilteredCategories] = useState<string[]>([]);
 
   // Permission check effect
   useEffect(() => {
@@ -42,6 +49,31 @@ export default function EditBlogPage() {
       router.push("/blogs/view");
     }
   }, [session, canEdit, router]);
+
+  // Fetch existing categories on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/blogs/categories", { cache: "no-store" });
+        const j = await res.json();
+        if (res.ok) setCategoryList(j.categories || []);
+      } catch (err) {
+        console.error("Failed to load categories:", err);
+      }
+    })();
+  }, []);
+
+  // Filter categories based on input
+  useEffect(() => {
+    if (!category.trim()) {
+      setFilteredCategories(categoryList);
+    } else {
+      const filtered = categoryList.filter((cat) =>
+        cat.toLowerCase().includes(category.toLowerCase())
+      );
+      setFilteredCategories(filtered);
+    }
+  }, [category, categoryList]);
 
   useEffect(() => {
     (async () => {
@@ -64,6 +96,7 @@ export default function EditBlogPage() {
 
         const d: Blog = j.data;
         setTitle(d.title || "");
+        setCategory(d.category || "");
         setHtml(d.description_html || "");
         setFeatured(Boolean(d.featured_post));
         setExistingFile(d.file_path || null);
@@ -87,6 +120,7 @@ export default function EditBlogPage() {
       if (file) {
         const fd = new FormData();
         fd.append("title", title.trim());
+        fd.append("category", category.trim());
         fd.append("description_html", html);
         fd.append("featured_post", featured ? "1" : "0");
         fd.append("file", file);
@@ -97,6 +131,7 @@ export default function EditBlogPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: title.trim(),
+            category: category.trim(),
             description_html: html,
             featured_post: featured ? 1 : 0,
           }),
@@ -146,6 +181,38 @@ export default function EditBlogPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
+        </div>
+
+        <div className="relative">
+          <label className="mb-1 block text-sm font-medium">Category</label>
+          <input
+            className="w-full rounded-md border px-3 py-2 text-sm"
+            placeholder="Enter blog category (e.g., Healthcare, Technology, News)"
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setShowCategorySuggestions(true);
+            }}
+            onFocus={() => setShowCategorySuggestions(true)}
+            onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
+          />
+          {showCategorySuggestions && filteredCategories.length > 0 && (
+            <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-white shadow-lg">
+              {filteredCategories.map((cat, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                  onMouseDown={() => {
+                    setCategory(cat);
+                    setShowCategorySuggestions(false);
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>

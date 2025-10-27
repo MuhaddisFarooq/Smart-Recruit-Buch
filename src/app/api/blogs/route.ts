@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     const total = totalRows[0]?.cnt ?? 0;
 
     const rows = await query<any>(
-      `SELECT id, title, featured_post, file_path, addedBy, addedDate
+      `SELECT id, title, category, featured_post, file_path, addedBy, addedDate
        FROM blogs
        ${whereSql}
        ORDER BY id DESC
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
 
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     let title = "";
+    let category = "";
     let description_html = "";
     let featured_post = 0;
     let fileRel: string | null = null;
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
       title            = String(fd.get("title") || "");
+      category         = String(fd.get("category") || "");
       description_html = String(fd.get("description_html") || "");
       featured_post    = String(fd.get("featured_post") || "") === "1" ? 1 : 0;
       const file = fd.get("file") as File | null;
@@ -81,6 +83,7 @@ export async function POST(req: NextRequest) {
     } else {
       const b: any = await req.json().catch(() => ({}));
       title            = String(b.title || "");
+      category         = String(b.category || "");
       description_html = String(b.description_html || "");
       featured_post    = Number(b.featured_post) ? 1 : 0;
       // (no file in JSON mode)
@@ -90,9 +93,9 @@ export async function POST(req: NextRequest) {
 
     const res = await execute(
       `INSERT INTO blogs
-        (title, description_html, file_path, featured_post, addedBy, addedDate)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [title.trim(), description_html, fileRel, featured_post, who, now]
+        (title, category, description_html, file_path, featured_post, addedBy, addedDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [title.trim(), category.trim() || null, description_html, fileRel, featured_post, who, now]
     );
 
     return NextResponse.json({ ok: true, id: res.insertId });

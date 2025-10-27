@@ -11,6 +11,7 @@ import ExportButton from "@/components/common/ExportButton";
 type Row = {
   id: number;
   title: string;
+  category?: string | null;
   description_html: string | null;
   file_path: string | null;
   featured_post: 0 | 1;
@@ -60,6 +61,7 @@ export default function BlogsViewPage() {
   const exportColumns = [
     { key: "id", header: "ID", width: 10 },
     { key: "title", header: "Title", width: 30 },
+    { key: "category", header: "Category", width: 20 },
     { key: "featured_post", header: "Featured Post", width: 15 },
     { key: "file_path", header: "File Path", width: 25 },
     { key: "addedBy", header: "Added By", width: 20 },
@@ -215,6 +217,7 @@ export default function BlogsViewPage() {
             <tr className="bg-gray-50 text-gray-600">
               <th className="px-4 py-3 text-left font-medium">ID</th>
               <th className="px-4 py-3 text-left font-medium">Title</th>
+              <th className="px-4 py-3 text-left font-medium">Category</th>
               <th className="px-4 py-3 text-left font-medium">Featured</th>
               <th className="px-4 py-3 text-left font-medium">File</th>
               <th className="px-4 py-3 text-left font-medium">Added By</th>
@@ -225,13 +228,13 @@ export default function BlogsViewPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
                   Loading…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
                   No blogs found.
                 </td>
               </tr>
@@ -240,6 +243,7 @@ export default function BlogsViewPage() {
                 <tr key={r.id} className={i % 2 ? "bg-white" : "bg-gray-50/50"}>
                   <td className="px-4 py-3">{r.id}</td>
                   <td className="px-4 py-3">{r.title}</td>
+                  <td className="px-4 py-3">{r.category || "—"}</td>
                   <td className="px-4 py-3">
                     {r.featured_post ? (
                       <span className="rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-700">
