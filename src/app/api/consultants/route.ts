@@ -110,7 +110,8 @@ export async function GET(req: NextRequest) {
  * {
  *   consultant_id, cat_name, name, fee, dcd,
  *   specialties, education, aoe, schedule (object),
- *   profile_pic, employment_status, doctor_type
+ *   profile_pic, background_image, employment_status, 
+ *   doctor_type, consultant_type
  * }
  */
 export async function POST(req: NextRequest) {
@@ -148,14 +149,14 @@ export async function POST(req: NextRequest) {
       (
         consultant_id, cat_name, name, fee, dcd,
         specialties, education, aoe, experience, schedule,
-        profile_pic, employment_status, doctor_type,
+        profile_pic, background_image, employment_status, doctor_type, consultant_type,
         status, addedBy, addedDate
       )
       VALUES
       (
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
-        ?, ?, ?,
+        ?, ?, ?, ?, ?,
         'active', ?, NOW()
       )
     `;
@@ -174,8 +175,10 @@ export async function POST(req: NextRequest) {
       scheduleJson,
 
       String(b.profile_pic ?? ""),
+      String(b.background_image ?? ""),
       String(b.employment_status ?? ""),
       String(b.doctor_type ?? ""),
+      String(b.consultant_type ?? "Physical"),
 
       addedBy,
     ]);

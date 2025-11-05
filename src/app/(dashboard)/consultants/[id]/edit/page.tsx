@@ -25,8 +25,10 @@ type Form = {
   experience: string;
   schedule: Record<DayKey, TimeSlot[]>;
   profile_pic: string;           // store "consultants/<file>" in DB
+  background_image: string;      // store background image filename
   employment_status: string;
   doctor_type: string;
+  consultant_type: "Physical" | "Telephonic";
   status: "active" | "inactive";
 };
 
@@ -131,8 +133,12 @@ function EditConsultantInner() {
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [backgroundImageFile, setBackgroundImageFile] = useState<File | null>(null);
+  const [backgroundPreview, setBackgroundPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const backgroundFileRef = useRef<HTMLInputElement | null>(null);
   const prevObjectUrl = useRef<string | null>(null);
+  const prevBackgroundObjectUrl = useRef<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -176,12 +182,15 @@ function EditConsultantInner() {
           experience: d?.experience ?? "",
           schedule: scheduleObj,
           profile_pic: d?.profile_pic ?? "",
+          background_image: d?.background_image ?? "",
           employment_status: d?.employment_status ?? "",
           doctor_type: d?.doctor_type ?? "",
+          consultant_type: d?.consultant_type || "Physical",
           status: d?.status === "inactive" ? "inactive" : "active",
         });
 
         setPhotoPreview(toPicUrl(d?.profile_pic) || null);
+        setBackgroundPreview(toPicUrl(d?.background_image) || null);
       } catch {
         setForm(null);
       } finally {
@@ -189,7 +198,10 @@ function EditConsultantInner() {
       }
     })();
 
-    return () => { if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current); };
+    return () => { 
+      if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current); 
+      if (prevBackgroundObjectUrl.current) URL.revokeObjectURL(prevBackgroundObjectUrl.current);
+    };
   }, [id]);
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -209,6 +221,38 @@ function EditConsultantInner() {
     }
   }
 
+  function onPickBackgroundImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null;
+    setBackgroundImageFile(f);
+
+    if (prevBackgroundObjectUrl.current) {
+      URL.revokeObjectURL(prevBackgroundObjectUrl.current);
+      prevBackgroundObjectUrl.current = null;
+    }
+    if (f) {
+      const obj = URL.createObjectURL(f);
+      prevBackgroundObjectUrl.current = obj;
+      setBackgroundPreview(obj);
+    } else {
+      setBackgroundPreview(toPicUrl(form?.background_image) || null);
+    }
+  }
+
+  function onRemoveBackgroundImage() {
+    setBackgroundImageFile(null);
+    setBackgroundPreview(null);
+    if (form) {
+      setForm({ ...form, background_image: "" });
+    }
+    if (backgroundFileRef.current) {
+      backgroundFileRef.current.value = "";
+    }
+    if (prevBackgroundObjectUrl.current) {
+      URL.revokeObjectURL(prevBackgroundObjectUrl.current);
+      prevBackgroundObjectUrl.current = null;
+    }
+  }
+
   async function save() {
     if (!form) return;
     setSaving(true);
@@ -217,6 +261,10 @@ function EditConsultantInner() {
       if (photoFile) {
         const stored = await tryUpload(photoFile);
         payload.profile_pic = stored; // "consultants/<fname>"
+      }
+      if (backgroundImageFile) {
+        const stored = await tryUpload(backgroundImageFile);
+        payload.background_image = stored; // "consultants/<fname>"
       }
 
       // Convert schedule times to include AM/PM
@@ -297,6 +345,29 @@ function EditConsultantInner() {
                    onChange={(e) => setForm({ ...form, doctor_type: e.target.value })}
                    placeholder='e.g. "Surgeon" (or leave blank)'/>
           </div>
+          <div>
+            <label className="text-sm font-medium">Consultant Type</label>
+            <div className="mt-1 flex gap-4">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="consultantType"
+                  checked={form.consultant_type === "Physical"}
+                  onChange={() => setForm({ ...form, consultant_type: "Physical" })}
+                />
+                <span>Physical</span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="consultantType"
+                  checked={form.consultant_type === "Telephonic"}
+                  onChange={() => setForm({ ...form, consultant_type: "Telephonic" })}
+                />
+                <span>Telephonic</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         {/* Text areas */}
@@ -376,27 +447,78 @@ function EditConsultantInner() {
 
         {/* Upload + employment + surgeon */}
         <div className="rounded-lg border p-4">
-          <h2 className="text-lg font-semibold mb-3">Upload Picture</h2>
-          <div className="flex items-center gap-4">
-            <div className="h-20 w-20 overflow-hidden rounded-full border bg-gray-50 flex items-center justify-center">
-              {photoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoPreview} alt="preview" className="h-20 w-20 object-cover" />
-              ) : toPicUrl(form.profile_pic) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={toPicUrl(form.profile_pic)!} alt="current" className="h-20 w-20 object-cover" />
-              ) : (
-                <span className="text-[11px] text-gray-400">No image</span>
-              )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Profile Picture Upload */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Upload Profile Picture</h3>
+              <div className="flex items-center gap-4">
+                <div className="h-20 w-20 overflow-hidden rounded-full border bg-gray-50 flex items-center justify-center">
+                  {photoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photoPreview} alt="preview" className="h-20 w-20 object-cover" />
+                  ) : toPicUrl(form.profile_pic) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={toPicUrl(form.profile_pic)!} alt="current" className="h-20 w-20 object-cover" />
+                  ) : (
+                    <span className="text-[11px] text-gray-400">No image</span>
+                  )}
+                </div>
+
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto}/>
+                <button type="button"
+                        onClick={() => { if (fileRef.current) fileRef.current.value = ""; fileRef.current?.click(); }}
+                        className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80">
+                  Choose Image
+                </button>
+                {form.profile_pic ? <span className="text-xs text-gray-500">Current file: {form.profile_pic}</span> : null}
+              </div>
             </div>
 
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto}/>
-            <button type="button"
-                    onClick={() => { if (fileRef.current) fileRef.current.value = ""; fileRef.current?.click(); }}
-                    className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80">
-              Choose Image
-            </button>
-            {form.profile_pic ? <span className="text-xs text-gray-500">Current file: {form.profile_pic}</span> : null}
+            {/* Background Image Upload */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Upload Background Image</h3>
+              <div className="flex items-center gap-4">
+                <div className="relative h-16 w-24 overflow-hidden rounded-md border bg-gray-50 flex items-center justify-center">
+                  {backgroundPreview ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={backgroundPreview} alt="background preview" className="h-16 w-24 object-cover" />
+                      <button
+                        type="button"
+                        onClick={onRemoveBackgroundImage}
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white hover:bg-red-600 flex items-center justify-center text-xs font-bold shadow-md"
+                        title="Remove background image"
+                      >
+                        ✕
+                      </button>
+                    </>
+                  ) : toPicUrl(form.background_image) ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={toPicUrl(form.background_image)!} alt="current background" className="h-16 w-24 object-cover" />
+                      <button
+                        type="button"
+                        onClick={onRemoveBackgroundImage}
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white hover:bg-red-600 flex items-center justify-center text-xs font-bold shadow-md"
+                        title="Remove background image"
+                      >
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[11px] text-gray-400">No image</span>
+                  )}
+                </div>
+
+                <input ref={backgroundFileRef} type="file" accept="image/*" className="hidden" onChange={onPickBackgroundImage}/>
+                <button type="button"
+                        onClick={() => { if (backgroundFileRef.current) backgroundFileRef.current.value = ""; backgroundFileRef.current?.click(); }}
+                        className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80">
+                  Choose Background
+                </button>
+                {form.background_image ? <span className="text-xs text-gray-500">Current file: {form.background_image}</span> : null}
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">

@@ -31,7 +31,7 @@ export async function GET(
       `
       SELECT id, consultant_id, cat_name, name, fee, dcd,
              specialties, education, aoe, schedule,
-             profile_pic, employment_status, doctor_type, status,
+             profile_pic, background_image, employment_status, doctor_type, consultant_type, status,
              updatedBy, updatedDate
       FROM consultant
       WHERE id = ?
@@ -118,8 +118,10 @@ export async function PATCH(
     }
 
     if (body.profile_pic       !== undefined) set("profile_pic",       String(body.profile_pic || ""));
+    if (body.background_image  !== undefined) set("background_image",  String(body.background_image || ""));
     if (body.employment_status !== undefined) set("employment_status", String(body.employment_status || ""));
     if (body.doctor_type       !== undefined) set("doctor_type",       String(body.doctor_type || ""));
+    if (body.consultant_type   !== undefined) set("consultant_type",   String(body.consultant_type || "Physical"));
     if (body.status            !== undefined) {
       set("status", String(body.status).toLowerCase() === "active" ? "active" : "inactive");
     }

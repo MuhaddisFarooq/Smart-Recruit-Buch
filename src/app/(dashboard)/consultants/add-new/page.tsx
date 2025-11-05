@@ -37,7 +37,9 @@ type FormState = {
     | "International Visiting Doctor"
     | "Associate Consultant";
   isSurgeon: boolean;
+  consultantType: "Physical" | "Telephonic";
   photoFile?: File | null;
+  backgroundImageFile?: File | null;
 };
 
 type MainCat = { id: number; cat_name: string };
@@ -143,7 +145,9 @@ async function uploadBlob(blob: Blob, originalName = "image.jpg") {
 
 function AddConsultantInner() {
   const [preview, setPreview] = useState<string | null>(null);
+  const [backgroundPreview, setBackgroundPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const backgroundFileRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState<FormState>({
     consultantId: "",
@@ -165,7 +169,9 @@ function AddConsultantInner() {
     },
     employment: "Permanent",
     isSurgeon: false,
+    consultantType: "Physical",
     photoFile: null,
+    backgroundImageFile: null,
   });
 
   const [mainCats, setMainCats] = useState<MainCat[]>([]);
@@ -177,6 +183,8 @@ function AddConsultantInner() {
   // new: upload state + stored filename from server
   const [uploading, setUploading] = useState(false);
   const [uploadedFilename, setUploadedFilename] = useState<string>("");
+  const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [uploadedBackgroundFilename, setUploadedBackgroundFilename] = useState<string>("");
 
   // Fetch main categories
   useEffect(() => {
@@ -265,6 +273,45 @@ function AddConsultantInner() {
     }
   };
 
+  // Background Image upload handler
+  const onBackgroundImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (!file) {
+      setForm((s) => ({ ...s, backgroundImageFile: null }));
+      setBackgroundPreview(null);
+      setUploadedBackgroundFilename("");
+      return;
+    }
+
+    try {
+      setUploadingBackground(true);
+      const compressed = await compressImage(file, 1920, 1080, 0.85);
+      setBackgroundPreview(URL.createObjectURL(compressed));
+      const up = await uploadBlob(compressed, file.name);
+      setUploadedBackgroundFilename(up.filename);
+      setForm((s) => ({ ...s, backgroundImageFile: file }));
+      notify.success("Background image uploaded.");
+    } catch (err: any) {
+      console.error(err);
+      notify.error(err?.message || "Failed to process background image.");
+      setUploadedBackgroundFilename("");
+      setBackgroundPreview(null);
+      setForm((s) => ({ ...s, backgroundImageFile: null }));
+    } finally {
+      setUploadingBackground(false);
+    }
+  };
+
+  // Remove background image handler
+  const onRemoveBackgroundImage = () => {
+    setForm((s) => ({ ...s, backgroundImageFile: null }));
+    setBackgroundPreview(null);
+    setUploadedBackgroundFilename("");
+    if (backgroundFileRef.current) {
+      backgroundFileRef.current.value = "";
+    }
+  };
+
   // Build schedule JSON expected by API
   const buildScheduleJson = () => {
     const out: Record<string, { start: string; end: string }[]> = {};
@@ -325,8 +372,10 @@ function AddConsultantInner() {
       experience: form.experience,
       schedule: scheduleData,
       profile_pic: uploadedFilename || "",
+      background_image: uploadedBackgroundFilename || "",
       employment_status: form.employment,
       doctor_type: form.isSurgeon ? "Surgeon" : "",
+      consultant_type: form.consultantType,
     };
 
     try {
@@ -370,13 +419,17 @@ function AddConsultantInner() {
         },
         employment: "Permanent",
         isSurgeon: false,
+        consultantType: "Physical",
         photoFile: null,
+        backgroundImageFile: null,
       });
       setPreview(null);
+      setBackgroundPreview(null);
       setSelectedMain("");
       setSelectedSub("");
       setSubCats([]);
       setUploadedFilename("");
+      setUploadedBackgroundFilename("");
     } catch {
       /* toast already shown */
     } finally {
@@ -585,9 +638,10 @@ function AddConsultantInner() {
 
         {/* Upload & Employment */}
         <section className="rounded-xl border bg-white/50 p-6 shadow-sm">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2">
-              <h3 className="text-sm font-medium mb-2">Upload Picture</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Profile Picture Upload */}
+            <div>
+              <h3 className="text-sm font-medium mb-2">Upload Profile Picture</h3>
               <div className="flex items-center gap-4">
                 <div className="h-16 w-16 overflow-hidden rounded-md border bg-gray-50 flex items-center justify-center">
                   {preview ? (
@@ -615,44 +669,111 @@ function AddConsultantInner() {
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-medium mb-2">Employment</h3>
-                <div className="flex flex-wrap items-center gap-4">
-                  {(
-                    [
-                      "Permanent",
-                      "Visiting",
-                      "International Visiting Doctor",
-                      "Associate Consultant",
-                    ] as const
-                  ).map((opt) => (
-                    <label key={opt} className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="employment"
-                        checked={form.employment === opt}
-                        onChange={() => setForm((s) => ({ ...s, employment: opt }))}
-                      />
-                      <span>{opt}</span>
-                    </label>
-                  ))}
+            {/* Background Image Upload */}
+            <div>
+              <h3 className="text-sm font-medium mb-2">Upload Background Image</h3>
+              <div className="flex items-center gap-4">
+                <div className="relative h-16 w-24 overflow-hidden rounded-md border bg-gray-50 flex items-center justify-center">
+                  {backgroundPreview ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={backgroundPreview} alt="background preview" className="h-16 w-24 object-cover" />
+                      <button
+                        type="button"
+                        onClick={onRemoveBackgroundImage}
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white hover:bg-red-600 flex items-center justify-center text-xs font-bold shadow-md"
+                        title="Remove background image"
+                      >
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[11px] text-gray-400">No image</span>
+                  )}
                 </div>
+                <input
+                  ref={backgroundFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onBackgroundImage}
+                />
+                <button
+                  type="button"
+                  onClick={() => backgroundFileRef.current?.click()}
+                  className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80"
+                >
+                  Choose Background
+                </button>
+                {uploadingBackground && <span className="text-xs text-gray-500">Uploading…</span>}
               </div>
+            </div>
+          </div>
 
-              <div>
-                <h3 className="text-sm font-medium mb-2">Doctor Type</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            {/* Consultant Type */}
+            <div>
+              <h3 className="text-sm font-medium mb-2">Consultant Type</h3>
+              <div className="flex flex-col gap-2">
                 <label className="inline-flex items-center gap-2">
                   <input
-                    type="checkbox"
-                    checked={form.isSurgeon}
-                    onChange={(e) =>
-                      setForm((s) => ({ ...s, isSurgeon: e.target.checked }))
-                    }
+                    type="radio"
+                    name="consultantType"
+                    checked={form.consultantType === "Physical"}
+                    onChange={() => setForm((s) => ({ ...s, consultantType: "Physical" }))}
                   />
-                  <span>Surgeon</span>
+                  <span>Physical</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="consultantType"
+                    checked={form.consultantType === "Telephonic"}
+                    onChange={() => setForm((s) => ({ ...s, consultantType: "Telephonic" }))}
+                  />
+                  <span>Telephonic</span>
                 </label>
               </div>
+            </div>
+
+            {/* Employment */}
+            <div>
+              <h3 className="text-sm font-medium mb-2">Employment</h3>
+              <div className="flex flex-wrap items-center gap-4">
+                {(
+                  [
+                    "Permanent",
+                    "Visiting",
+                    "International Visiting Doctor",
+                    "Associate Consultant",
+                  ] as const
+                ).map((opt) => (
+                  <label key={opt} className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="employment"
+                      checked={form.employment === opt}
+                      onChange={() => setForm((s) => ({ ...s, employment: opt }))}
+                    />
+                    <span>{opt}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Doctor Type */}
+            <div>
+              <h3 className="text-sm font-medium mb-2">Doctor Type</h3>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.isSurgeon}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, isSurgeon: e.target.checked }))
+                  }
+                />
+                <span>Surgeon</span>
+              </label>
             </div>
           </div>
         </section>
