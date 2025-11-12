@@ -30,14 +30,18 @@ type FormState = {
   education: string;
   expertise: string;
   experience: string;
-  schedule: Record<DayKey, DaySchedule>;
+  schedulePhysical: Record<DayKey, DaySchedule>;
+  scheduleTelephonic: Record<DayKey, DaySchedule>;
   employment:
     | "Permanent"
     | "Visiting"
     | "International Visiting Doctor"
     | "Associate Consultant";
   isSurgeon: boolean;
-  consultantType: "Physical" | "Telephonic";
+  consultantTypes: {
+    Physical: boolean;
+    Telephonic: boolean;
+  };
   photoFile?: File | null;
   backgroundImageFile?: File | null;
 };
@@ -158,7 +162,16 @@ function AddConsultantInner() {
     education: "",
     expertise: "",
     experience: "",
-    schedule: {
+    schedulePhysical: {
+      monday: { ...defaultDay },
+      tuesday: { ...defaultDay },
+      wednesday: { ...defaultDay },
+      thursday: { ...defaultDay },
+      friday: { ...defaultDay },
+      saturday: { ...defaultDay },
+      sunday: { ...defaultDay },
+    },
+    scheduleTelephonic: {
       monday: { ...defaultDay },
       tuesday: { ...defaultDay },
       wednesday: { ...defaultDay },
@@ -169,7 +182,10 @@ function AddConsultantInner() {
     },
     employment: "Permanent",
     isSurgeon: false,
-    consultantType: "Physical",
+    consultantTypes: {
+      Physical: true,
+      Telephonic: false,
+    },
     photoFile: null,
     backgroundImageFile: null,
   });
@@ -233,13 +249,14 @@ function AddConsultantInner() {
 
   // Day schedule setter
   const onSchedule =
-    (day: DayKey, field: keyof DaySchedule) =>
+    (day: DayKey, field: keyof DaySchedule, scheduleType: "physical" | "telephonic") =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const scheduleKey = scheduleType === "physical" ? "schedulePhysical" : "scheduleTelephonic";
       setForm((s) => ({
         ...s,
-        schedule: {
-          ...s.schedule,
-          [day]: { ...s.schedule[day], [field]: e.target.value },
+        [scheduleKey]: {
+          ...s[scheduleKey],
+          [day]: { ...s[scheduleKey][day], [field]: e.target.value },
         },
       }));
     };
@@ -312,38 +329,34 @@ function AddConsultantInner() {
     }
   };
 
-  // Build schedule JSON expected by API
+  // Build schedule JSON expected by API with physical/telephonic labels
   const buildScheduleJson = () => {
-    const out: Record<string, { start: string; end: string }[]> = {};
-    for (const { key } of dayLabels) {
-      const d = form.schedule[key];
-      console.log(`📋 ${key}:`, {
-        morningStart: d.morningStart,
-        morningEnd: d.morningEnd,
-        eveningStart: d.eveningStart,
-        eveningEnd: d.eveningEnd,
-      });
-      
-      const slots: { start: string; end: string }[] = [];
-      if (d.morningStart || d.morningEnd) {
-        const morningSlot = {
-          start: d.morningStart ? convertTo12Hour(d.morningStart) : "",
-          end: d.morningEnd ? convertTo12Hour(d.morningEnd) : (d.morningStart ? convertTo12Hour(d.morningStart) : ""),
-        };
-        console.log(`  ➡️ Morning slot for ${key}:`, morningSlot);
-        slots.push(morningSlot);
+    const buildForType = (schedule: Record<DayKey, DaySchedule>) => {
+      const out: Record<string, { start: string; end: string }[]> = {};
+      for (const { key } of dayLabels) {
+        const d = schedule[key];
+        const slots: { start: string; end: string }[] = [];
+        if (d.morningStart || d.morningEnd) {
+          slots.push({
+            start: d.morningStart ? convertTo12Hour(d.morningStart) : "",
+            end: d.morningEnd ? convertTo12Hour(d.morningEnd) : (d.morningStart ? convertTo12Hour(d.morningStart) : ""),
+          });
+        }
+        if (d.eveningStart || d.eveningEnd) {
+          slots.push({
+            start: d.eveningStart ? convertTo12Hour(d.eveningStart) : "",
+            end: d.eveningEnd ? convertTo12Hour(d.eveningEnd) : (d.eveningStart ? convertTo12Hour(d.eveningStart) : ""),
+          });
+        }
+        out[key] = slots;
       }
-      if (d.eveningStart || d.eveningEnd) {
-        const eveningSlot = {
-          start: d.eveningStart ? convertTo12Hour(d.eveningStart) : "",
-          end: d.eveningEnd ? convertTo12Hour(d.eveningEnd) : (d.eveningStart ? convertTo12Hour(d.eveningStart) : ""),
-        };
-        console.log(`  ➡️ Evening slot for ${key}:`, eveningSlot);
-        slots.push(eveningSlot);
-      }
-      out[key] = slots;
-    }
-    return out;
+      return out;
+    };
+
+    return {
+      physical: buildForType(form.schedulePhysical),
+      telephonic: buildForType(form.scheduleTelephonic),
+    };
   };
 
   async function onSubmit(e: React.FormEvent) {
@@ -360,6 +373,16 @@ function AddConsultantInner() {
     const scheduleData = buildScheduleJson();
     console.log("📅 Schedule being saved:", JSON.stringify(scheduleData, null, 2));
 
+    // Build consultant_type string from checkboxes
+    const selectedTypes: string[] = [];
+    if (form.consultantTypes.Physical) selectedTypes.push("Physical");
+    if (form.consultantTypes.Telephonic) selectedTypes.push("Telephonic");
+    const consultantType = selectedTypes.length > 0 ? selectedTypes.join(", ") : "Physical";
+    
+    console.log("🔍 Consultant Types State:", form.consultantTypes);
+    console.log("🔍 Selected Types Array:", selectedTypes);
+    console.log("🔍 Final consultantType string:", consultantType);
+
     const payload = {
       consultant_id: form.consultantId.trim(),
       cat_name: selectedSub,
@@ -375,8 +398,10 @@ function AddConsultantInner() {
       background_image: uploadedBackgroundFilename || "",
       employment_status: form.employment,
       doctor_type: form.isSurgeon ? "Surgeon" : "",
-      consultant_type: form.consultantType,
+      consultant_type: consultantType,
     };
+    
+    console.log("📦 Full payload being sent:", JSON.stringify(payload, null, 2));
 
     try {
       setSaving(true);
@@ -408,7 +433,16 @@ function AddConsultantInner() {
         education: "",
         expertise: "",
         experience: "",
-        schedule: {
+        schedulePhysical: {
+          monday: { ...defaultDay },
+          tuesday: { ...defaultDay },
+          wednesday: { ...defaultDay },
+          thursday: { ...defaultDay },
+          friday: { ...defaultDay },
+          saturday: { ...defaultDay },
+          sunday: { ...defaultDay },
+        },
+        scheduleTelephonic: {
           monday: { ...defaultDay },
           tuesday: { ...defaultDay },
           wednesday: { ...defaultDay },
@@ -419,7 +453,10 @@ function AddConsultantInner() {
         },
         employment: "Permanent",
         isSurgeon: false,
-        consultantType: "Physical",
+        consultantTypes: {
+          Physical: true,
+          Telephonic: false,
+        },
         photoFile: null,
         backgroundImageFile: null,
       });
@@ -580,9 +617,9 @@ function AddConsultantInner() {
           </div>
         </section>
 
-        {/* Weekly Timings */}
+        {/* Physical Consultation Timings */}
         <section className="rounded-xl border bg-white/50 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Please Enter Consultant Timings Below…</h2>
+          <h2 className="text-lg font-semibold">Physical Consultation Timings</h2>
           <div className="mt-4 grid grid-cols-1 gap-4">
             <div className="hidden md:grid md:grid-cols-5 text-sm font-medium text-muted-foreground">
               <div />
@@ -596,40 +633,88 @@ function AddConsultantInner() {
               <div key={key} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
                 <div className="font-medium">{label}</div>
                 
-                {/* Morning Start */}
                 <input
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedule[key].morningStart}
-                  onChange={onSchedule(key, "morningStart")}
+                  value={form.schedulePhysical[key].morningStart}
+                  onChange={onSchedule(key, "morningStart", "physical")}
                 />
                 
-                {/* Morning End */}
                 <input
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedule[key].morningEnd}
-                  onChange={onSchedule(key, "morningEnd")}
+                  value={form.schedulePhysical[key].morningEnd}
+                  onChange={onSchedule(key, "morningEnd", "physical")}
                 />
                 
-                {/* Evening Start */}
                 <input
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedule[key].eveningStart}
-                  onChange={onSchedule(key, "eveningStart")}
+                  value={form.schedulePhysical[key].eveningStart}
+                  onChange={onSchedule(key, "eveningStart", "physical")}
                 />
                 
-                {/* Evening End */}
                 <input
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedule[key].eveningEnd}
-                  onChange={onSchedule(key, "eveningEnd")}
+                  value={form.schedulePhysical[key].eveningEnd}
+                  onChange={onSchedule(key, "eveningEnd", "physical")}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Telephonic Consultation Timings */}
+        <section className="rounded-xl border bg-white/50 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold">Telephonic Consultation Timings</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <div className="hidden md:grid md:grid-cols-5 text-sm font-medium text-muted-foreground">
+              <div />
+              <div className="text-center">Morning Start</div>
+              <div className="text-center">Morning End</div>
+              <div className="text-center">Evening Start</div>
+              <div className="text-center">Evening End</div>
+            </div>
+
+            {dayLabels.map(({ key, label }) => (
+              <div key={key} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
+                <div className="font-medium">{label}</div>
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[key].morningStart}
+                  onChange={onSchedule(key, "morningStart", "telephonic")}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[key].morningEnd}
+                  onChange={onSchedule(key, "morningEnd", "telephonic")}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[key].eveningStart}
+                  onChange={onSchedule(key, "eveningStart", "telephonic")}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[key].eveningEnd}
+                  onChange={onSchedule(key, "eveningEnd", "telephonic")}
                 />
               </div>
             ))}
@@ -717,19 +802,33 @@ function AddConsultantInner() {
               <div className="flex flex-col gap-2">
                 <label className="inline-flex items-center gap-2">
                   <input
-                    type="radio"
-                    name="consultantType"
-                    checked={form.consultantType === "Physical"}
-                    onChange={() => setForm((s) => ({ ...s, consultantType: "Physical" }))}
+                    type="checkbox"
+                    checked={form.consultantTypes.Physical}
+                    onChange={(e) =>
+                      setForm((s) => ({
+                        ...s,
+                        consultantTypes: {
+                          ...s.consultantTypes,
+                          Physical: e.target.checked,
+                        },
+                      }))
+                    }
                   />
                   <span>Physical</span>
                 </label>
                 <label className="inline-flex items-center gap-2">
                   <input
-                    type="radio"
-                    name="consultantType"
-                    checked={form.consultantType === "Telephonic"}
-                    onChange={() => setForm((s) => ({ ...s, consultantType: "Telephonic" }))}
+                    type="checkbox"
+                    checked={form.consultantTypes.Telephonic}
+                    onChange={(e) =>
+                      setForm((s) => ({
+                        ...s,
+                        consultantTypes: {
+                          ...s.consultantTypes,
+                          Telephonic: e.target.checked,
+                        },
+                      }))
+                    }
                   />
                   <span>Telephonic</span>
                 </label>

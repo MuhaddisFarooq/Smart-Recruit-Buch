@@ -30,7 +30,7 @@ export async function GET(
     const rows = await query<any>(
       `
       SELECT id, consultant_id, cat_name, name, fee, dcd,
-             specialties, education, aoe, schedule,
+             specialties, education, aoe, experience, schedule,
              profile_pic, background_image, employment_status, doctor_type, consultant_type, status,
              updatedBy, updatedDate
       FROM consultant

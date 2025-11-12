@@ -8,10 +8,15 @@ import { parseTime, convertTo12Hour } from "@/lib/timeHelpers";
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 
-type TimeSlot = { 
-  start: string; 
-  end: string;
+type DaySchedule = {
+  morningStart: string;
+  morningEnd: string;
+  eveningStart: string;
+  eveningEnd: string;
 };
+
+type MainCat = { id: number; cat_name: string };
+type SubCat = { id: number; cat_name: string; main_cat_name: string };
 
 type Form = {
   consultant_id: string;
@@ -23,16 +28,27 @@ type Form = {
   education: string;
   aoe: string;
   experience: string;
-  schedule: Record<DayKey, TimeSlot[]>;
+  schedulePhysical: Record<DayKey, DaySchedule>;
+  scheduleTelephonic: Record<DayKey, DaySchedule>;
   profile_pic: string;           // store "consultants/<file>" in DB
   background_image: string;      // store background image filename
   employment_status: string;
   doctor_type: string;
-  consultant_type: "Physical" | "Telephonic";
+  consultant_types: {
+    Physical: boolean;
+    Telephonic: boolean;
+  };
   status: "active" | "inactive";
 };
 
 const days: DayKey[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+
+const defaultDay: DaySchedule = {
+  morningStart: "",
+  morningEnd: "",
+  eveningStart: "",
+  eveningEnd: "",
+};
 
 /** Same resolver as view */
 function toPicUrl(src?: string | null): string | undefined {
@@ -140,6 +156,45 @@ function EditConsultantInner() {
   const prevObjectUrl = useRef<string | null>(null);
   const prevBackgroundObjectUrl = useRef<string | null>(null);
 
+  // Category selection state
+  const [mainCats, setMainCats] = useState<MainCat[]>([]);
+  const [subCats, setSubCats] = useState<SubCat[]>([]);
+  const [selectedMain, setSelectedMain] = useState("");
+  const [selectedSub, setSelectedSub] = useState("");
+
+  // Load main categories on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/consultants/main-categories", { cache: "no-store" });
+        const j = await r.json();
+        setMainCats(Array.isArray(j?.data) ? j.data : []);
+      } catch {
+        setMainCats([]);
+      }
+    })();
+  }, []);
+
+  // Load subcategories when main category changes
+  useEffect(() => {
+    if (!selectedMain) {
+      setSubCats([]);
+      return;
+    }
+    (async () => {
+      try {
+        const r = await fetch(
+          `/api/consultants/categories?main=${encodeURIComponent(selectedMain)}`,
+          { cache: "no-store" }
+        );
+        const j = await r.json();
+        setSubCats(Array.isArray(j?.data) ? j.data : []);
+      } catch {
+        setSubCats([]);
+      }
+    })();
+  }, [selectedMain]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -148,28 +203,52 @@ function EditConsultantInner() {
         const j = await r.json();
         const d = j?.data;
 
-        const scheduleObj: Form["schedule"] = (() => {
-          try {
-            const o = JSON.parse(d?.schedule || "{}");
-            const out: any = {};
-            for (const k of days) {
-              const daySlots = Array.isArray(o?.[k]) ? o[k] : [];
-              // Parse existing times - convert from 12-hour with AM/PM back to 24-hour
-              out[k] = daySlots.map((slot: any) => {
-                const startParsed = parseTime(slot.start || "");
-                const endParsed = parseTime(slot.end || "");
-                return {
-                  start: startParsed?.time || slot.start || "",
-                  end: endParsed?.time || slot.end || "",
-                };
-              });
-            }
-            return out;
-          } catch {
-            return { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [] };
+        const parseScheduleForType = (scheduleData: any) => {
+          const out: Record<DayKey, DaySchedule> = {} as any;
+          for (const k of days) {
+            const daySlots = Array.isArray(scheduleData?.[k]) ? scheduleData[k] : [];
+            const morning = daySlots[0] || {};
+            const evening = daySlots[1] || {};
+            
+            const morningStartParsed = parseTime(morning.start || "");
+            const morningEndParsed = parseTime(morning.end || "");
+            const eveningStartParsed = parseTime(evening.start || "");
+            const eveningEndParsed = parseTime(evening.end || "");
+            
+            out[k] = {
+              morningStart: morningStartParsed?.time || "",
+              morningEnd: morningEndParsed?.time || "",
+              eveningStart: eveningStartParsed?.time || "",
+              eveningEnd: eveningEndParsed?.time || "",
+            };
           }
-        })();
+          return out;
+        };
 
+        let schedulePhysical: Record<DayKey, DaySchedule>;
+        let scheduleTelephonic: Record<DayKey, DaySchedule>;
+
+        try {
+          const scheduleRaw = JSON.parse(d?.schedule || "{}");
+          
+          // Check if new format (with physical/telephonic labels)
+          if (scheduleRaw.physical || scheduleRaw.telephonic) {
+            schedulePhysical = parseScheduleForType(scheduleRaw.physical || {});
+            scheduleTelephonic = parseScheduleForType(scheduleRaw.telephonic || {});
+          } else {
+            // Old format - use same schedule for both
+            schedulePhysical = parseScheduleForType(scheduleRaw);
+            scheduleTelephonic = days.reduce((acc, k) => ({ ...acc, [k]: { ...defaultDay } }), {} as Record<DayKey, DaySchedule>);
+          }
+        } catch {
+          schedulePhysical = days.reduce((acc, k) => ({ ...acc, [k]: { ...defaultDay } }), {} as Record<DayKey, DaySchedule>);
+          scheduleTelephonic = days.reduce((acc, k) => ({ ...acc, [k]: { ...defaultDay } }), {} as Record<DayKey, DaySchedule>);
+        }
+
+        // Parse consultant_type from database (could be "Physical", "Telephonic", or "Physical, Telephonic")
+        const consultantTypesFromDb = d?.consultant_type || "Physical";
+        const typesArray = consultantTypesFromDb.split(",").map((t: string) => t.trim());
+        
         setForm({
           consultant_id: d?.consultant_id || "",
           name: d?.name || "",
@@ -180,14 +259,36 @@ function EditConsultantInner() {
           education: d?.education ?? "",
           aoe: d?.aoe ?? "",
           experience: d?.experience ?? "",
-          schedule: scheduleObj,
+          schedulePhysical,
+          scheduleTelephonic,
           profile_pic: d?.profile_pic ?? "",
           background_image: d?.background_image ?? "",
           employment_status: d?.employment_status ?? "",
           doctor_type: d?.doctor_type ?? "",
-          consultant_type: d?.consultant_type || "Physical",
+          consultant_types: {
+            Physical: typesArray.includes("Physical"),
+            Telephonic: typesArray.includes("Telephonic"),
+          },
           status: d?.status === "inactive" ? "inactive" : "active",
         });
+
+        // Set the selected subcategory
+        setSelectedSub(d?.cat_name || "");
+
+        // Fetch the main category for this subcategory
+        if (d?.cat_name) {
+          try {
+            const catRes = await fetch("/api/consultants/categories", { cache: "no-store" });
+            const catJson = await catRes.json();
+            const allSubCats = Array.isArray(catJson?.data) ? catJson.data : [];
+            const matchingSub = allSubCats.find((c: SubCat) => c.cat_name === d.cat_name);
+            if (matchingSub?.main_cat_name) {
+              setSelectedMain(matchingSub.main_cat_name);
+            }
+          } catch (err) {
+            console.error("Failed to load main category:", err);
+          }
+        }
 
         setPhotoPreview(toPicUrl(d?.profile_pic) || null);
         setBackgroundPreview(toPicUrl(d?.background_image) || null);
@@ -255,6 +356,13 @@ function EditConsultantInner() {
 
   async function save() {
     if (!form) return;
+
+    // Validate that a category is selected
+    if (!selectedSub) {
+      notify.error("Please select a Consultant Category.");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: Form = { ...form };
@@ -267,22 +375,63 @@ function EditConsultantInner() {
         payload.background_image = stored; // "consultants/<fname>"
       }
 
-      // Convert schedule times to include AM/PM
-      const scheduleWithAMPM: Record<string, { start: string; end: string }[]> = {};
-      for (const [day, slots] of Object.entries(payload.schedule)) {
-        scheduleWithAMPM[day] = slots.map((slot) => ({
-          start: slot.start ? convertTo12Hour(slot.start) : "",
-          end: slot.end ? convertTo12Hour(slot.end) : "",
-        }));
-      }
-      payload.schedule = scheduleWithAMPM as any;
+      // Build consultant_type string from checkboxes
+      const selectedTypes: string[] = [];
+      if (form.consultant_types.Physical) selectedTypes.push("Physical");
+      if (form.consultant_types.Telephonic) selectedTypes.push("Telephonic");
+      const consultantTypeStr = selectedTypes.length > 0 ? selectedTypes.join(", ") : "Physical";
+
+      // Build schedule JSON with physical/telephonic labels
+      const buildForType = (schedule: Record<DayKey, DaySchedule>) => {
+        const out: Record<string, { start: string; end: string }[]> = {};
+        for (const day of days) {
+          const d = schedule[day];
+          const slots: { start: string; end: string }[] = [];
+          if (d.morningStart || d.morningEnd) {
+            slots.push({
+              start: d.morningStart ? convertTo12Hour(d.morningStart) : "",
+              end: d.morningEnd ? convertTo12Hour(d.morningEnd) : (d.morningStart ? convertTo12Hour(d.morningStart) : ""),
+            });
+          }
+          if (d.eveningStart || d.eveningEnd) {
+            slots.push({
+              start: d.eveningStart ? convertTo12Hour(d.eveningStart) : "",
+              end: d.eveningEnd ? convertTo12Hour(d.eveningEnd) : (d.eveningStart ? convertTo12Hour(d.eveningStart) : ""),
+            });
+          }
+          out[day] = slots;
+        }
+        return out;
+      };
+
+      const scheduleData = {
+        physical: buildForType(form.schedulePhysical),
+        telephonic: buildForType(form.scheduleTelephonic),
+      };
       
-      console.log("📅 Schedule being saved:", JSON.stringify(scheduleWithAMPM, null, 2));
+      console.log("📅 Schedule being saved:", JSON.stringify(scheduleData, null, 2));
 
       const r = await fetch(`/api/consultants/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          consultant_id: payload.consultant_id,
+          name: payload.name,
+          cat_name: selectedSub, // Use selectedSub instead of payload.cat_name
+          fee: payload.fee,
+          dcd: payload.dcd,
+          specialties: payload.specialties,
+          education: payload.education,
+          aoe: payload.aoe,
+          experience: payload.experience,
+          schedule: scheduleData,
+          profile_pic: payload.profile_pic,
+          background_image: payload.background_image,
+          employment_status: payload.employment_status,
+          doctor_type: payload.doctor_type,
+          consultant_type: consultantTypeStr, // Send as comma-separated string
+          status: payload.status,
+        }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
@@ -315,10 +464,42 @@ function EditConsultantInner() {
                    onChange={(e) => setForm({ ...form, consultant_id: e.target.value })}/>
           </div>
           <div>
+            <label className="text-sm font-medium">Main Speciality Category</label>
+            <select
+              className="mt-1 w-full rounded-md border px-3 py-2 bg-white"
+              value={selectedMain}
+              onChange={(e) => {
+                setSelectedMain(e.target.value);
+                setSelectedSub("");
+              }}
+            >
+              <option value="">Select Main Speciality Category</option>
+              {mainCats.map((m) => (
+                <option key={m.id} value={m.cat_name}>
+                  {m.cat_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="text-sm font-medium">Consultant Category</label>
-            <input className="mt-1 w-full rounded-md border px-3 py-2"
-                   value={form.cat_name}
-                   onChange={(e) => setForm({ ...form, cat_name: e.target.value })}/>
+            <select
+              className="mt-1 w-full rounded-md border px-3 py-2 bg-white"
+              value={selectedSub}
+              onChange={(e) => setSelectedSub(e.target.value)}
+              disabled={!selectedMain}
+            >
+              <option value="">
+                {selectedMain
+                  ? "Select Consultant Category"
+                  : "Select main category first"}
+              </option>
+              {subCats.map((c) => (
+                <option key={c.id} value={c.cat_name}>
+                  {c.cat_name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="text-sm font-medium">Name</label>
@@ -347,22 +528,36 @@ function EditConsultantInner() {
           </div>
           <div>
             <label className="text-sm font-medium">Consultant Type</label>
-            <div className="mt-1 flex gap-4">
+            <div className="mt-1 flex flex-col gap-2">
               <label className="inline-flex items-center gap-2">
                 <input
-                  type="radio"
-                  name="consultantType"
-                  checked={form.consultant_type === "Physical"}
-                  onChange={() => setForm({ ...form, consultant_type: "Physical" })}
+                  type="checkbox"
+                  checked={form.consultant_types.Physical}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      consultant_types: {
+                        ...form.consultant_types,
+                        Physical: e.target.checked,
+                      },
+                    })
+                  }
                 />
                 <span>Physical</span>
               </label>
               <label className="inline-flex items-center gap-2">
                 <input
-                  type="radio"
-                  name="consultantType"
-                  checked={form.consultant_type === "Telephonic"}
-                  onChange={() => setForm({ ...form, consultant_type: "Telephonic" })}
+                  type="checkbox"
+                  checked={form.consultant_types.Telephonic}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      consultant_types: {
+                        ...form.consultant_types,
+                        Telephonic: e.target.checked,
+                      },
+                    })
+                  }
                 />
                 <span>Telephonic</span>
               </label>
@@ -401,45 +596,153 @@ function EditConsultantInner() {
                     placeholder="Years of experience and details"/>
         </div>
 
-        {/* Timings */}
+        {/* Physical Consultation Timings */}
         <div className="rounded-lg border p-4">
-          <h2 className="text-lg font-semibold">Please Enter Consultant Timings Below…</h2>
-          <div className="mt-3 grid grid-cols-1 gap-3">
+          <h2 className="text-lg font-semibold">Physical Consultation Timings</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <div className="hidden md:grid md:grid-cols-5 text-sm font-medium text-muted-foreground">
+              <div />
+              <div className="text-center">Morning Start</div>
+              <div className="text-center">Morning End</div>
+              <div className="text-center">Evening Start</div>
+              <div className="text-center">Evening End</div>
+            </div>
+
             {days.map((d) => (
-              <div key={d} className="grid grid-cols-1 items-center gap-2 md:grid-cols-5">
+              <div key={`physical-${d}`} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
                 <div className="font-medium capitalize">{d}</div>
-                {Array.from({ length: 2 }).map((_, idx) => {
-                  const slot = form.schedule[d][idx] || { start: "", end: "" };
-                  return (
-                    <div key={idx} className="col-span-2 grid grid-cols-2 gap-2">
-                      {/* Start Time */}
-                      <input 
-                        type="time"
-                        step="60"
-                        className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                        value={slot.start}
-                        onChange={(e) => {
-                          const next = { ...form };
-                          next.schedule[d][idx] = { ...slot, start: e.target.value };
-                          setForm(next);
-                        }}
-                      />
-                      
-                      {/* End Time */}
-                      <input 
-                        type="time"
-                        step="60"
-                        className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                        value={slot.end}
-                        onChange={(e) => {
-                          const next = { ...form };
-                          next.schedule[d][idx] = { ...slot, end: e.target.value };
-                          setForm(next);
-                        }}
-                      />
-                    </div>
-                  );
-                })}
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.schedulePhysical[d].morningStart}
+                  onChange={(e) => setForm({
+                    ...form,
+                    schedulePhysical: {
+                      ...form.schedulePhysical,
+                      [d]: { ...form.schedulePhysical[d], morningStart: e.target.value }
+                    }
+                  })}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.schedulePhysical[d].morningEnd}
+                  onChange={(e) => setForm({
+                    ...form,
+                    schedulePhysical: {
+                      ...form.schedulePhysical,
+                      [d]: { ...form.schedulePhysical[d], morningEnd: e.target.value }
+                    }
+                  })}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.schedulePhysical[d].eveningStart}
+                  onChange={(e) => setForm({
+                    ...form,
+                    schedulePhysical: {
+                      ...form.schedulePhysical,
+                      [d]: { ...form.schedulePhysical[d], eveningStart: e.target.value }
+                    }
+                  })}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.schedulePhysical[d].eveningEnd}
+                  onChange={(e) => setForm({
+                    ...form,
+                    schedulePhysical: {
+                      ...form.schedulePhysical,
+                      [d]: { ...form.schedulePhysical[d], eveningEnd: e.target.value }
+                    }
+                  })}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Telephonic Consultation Timings */}
+        <div className="rounded-lg border p-4">
+          <h2 className="text-lg font-semibold">Telephonic Consultation Timings</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <div className="hidden md:grid md:grid-cols-5 text-sm font-medium text-muted-foreground">
+              <div />
+              <div className="text-center">Morning Start</div>
+              <div className="text-center">Morning End</div>
+              <div className="text-center">Evening Start</div>
+              <div className="text-center">Evening End</div>
+            </div>
+
+            {days.map((d) => (
+              <div key={`telephonic-${d}`} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
+                <div className="font-medium capitalize">{d}</div>
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[d].morningStart}
+                  onChange={(e) => setForm({
+                    ...form,
+                    scheduleTelephonic: {
+                      ...form.scheduleTelephonic,
+                      [d]: { ...form.scheduleTelephonic[d], morningStart: e.target.value }
+                    }
+                  })}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[d].morningEnd}
+                  onChange={(e) => setForm({
+                    ...form,
+                    scheduleTelephonic: {
+                      ...form.scheduleTelephonic,
+                      [d]: { ...form.scheduleTelephonic[d], morningEnd: e.target.value }
+                    }
+                  })}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[d].eveningStart}
+                  onChange={(e) => setForm({
+                    ...form,
+                    scheduleTelephonic: {
+                      ...form.scheduleTelephonic,
+                      [d]: { ...form.scheduleTelephonic[d], eveningStart: e.target.value }
+                    }
+                  })}
+                />
+                
+                <input
+                  type="time"
+                  step="60"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+                  value={form.scheduleTelephonic[d].eveningEnd}
+                  onChange={(e) => setForm({
+                    ...form,
+                    scheduleTelephonic: {
+                      ...form.scheduleTelephonic,
+                      [d]: { ...form.scheduleTelephonic[d], eveningEnd: e.target.value }
+                    }
+                  })}
+                />
               </div>
             ))}
           </div>

@@ -144,6 +144,12 @@ export async function POST(req: NextRequest) {
     const experienceText = String(b.experience ?? "").trim() || null;
     const scheduleJson = normalizeSchedule(b.schedule);
 
+    // Debug: Log the consultant_type being received
+    console.log("🔍 Received consultant_type:", b.consultant_type);
+    console.log("🔍 Type of consultant_type:", typeof b.consultant_type);
+    const consultantType = String(b.consultant_type ?? "Physical");
+    console.log("🔍 Final consultant_type to save:", consultantType);
+
     const sql = `
       INSERT INTO consultant
       (
@@ -178,7 +184,7 @@ export async function POST(req: NextRequest) {
       String(b.background_image ?? ""),
       String(b.employment_status ?? ""),
       String(b.doctor_type ?? ""),
-      String(b.consultant_type ?? "Physical"),
+      consultantType,
 
       addedBy,
     ]);
