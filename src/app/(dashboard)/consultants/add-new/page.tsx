@@ -576,7 +576,7 @@ function AddConsultantInner() {
               <textarea
                 rows={2}
                 className="w-full rounded-md border px-3 py-2"
-                value={form.specialties}
+                value={form.specialties || ""}
                 onChange={onText("specialties")}
                 placeholder="e.g. Cardiology, Interventional Cardiology"
               />
@@ -637,7 +637,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedulePhysical[key].morningStart}
+                  value={form.schedulePhysical[key].morningStart || ""}
                   onChange={onSchedule(key, "morningStart", "physical")}
                 />
                 
@@ -645,7 +645,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedulePhysical[key].morningEnd}
+                  value={form.schedulePhysical[key].morningEnd || ""}
                   onChange={onSchedule(key, "morningEnd", "physical")}
                 />
                 
@@ -653,7 +653,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedulePhysical[key].eveningStart}
+                  value={form.schedulePhysical[key].eveningStart || ""}
                   onChange={onSchedule(key, "eveningStart", "physical")}
                 />
                 
@@ -661,7 +661,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.schedulePhysical[key].eveningEnd}
+                  value={form.schedulePhysical[key].eveningEnd || ""}
                   onChange={onSchedule(key, "eveningEnd", "physical")}
                 />
               </div>
@@ -689,7 +689,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[key].morningStart}
+                  value={form.scheduleTelephonic[key].morningStart || ""}
                   onChange={onSchedule(key, "morningStart", "telephonic")}
                 />
                 
@@ -697,7 +697,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[key].morningEnd}
+                  value={form.scheduleTelephonic[key].morningEnd || ""}
                   onChange={onSchedule(key, "morningEnd", "telephonic")}
                 />
                 
@@ -705,7 +705,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[key].eveningStart}
+                  value={form.scheduleTelephonic[key].eveningStart || ""}
                   onChange={onSchedule(key, "eveningStart", "telephonic")}
                 />
                 
@@ -713,7 +713,7 @@ function AddConsultantInner() {
                   type="time"
                   step="60"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[key].eveningEnd}
+                  value={form.scheduleTelephonic[key].eveningEnd || ""}
                   onChange={onSchedule(key, "eveningEnd", "telephonic")}
                 />
               </div>
