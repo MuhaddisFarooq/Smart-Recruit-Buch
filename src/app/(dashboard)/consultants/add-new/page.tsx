@@ -40,7 +40,7 @@ type FormState = {
   isSurgeon: boolean;
   consultantTypes: {
     Physical: boolean;
-    Telephonic: boolean;
+    Telemedicine: boolean;
   };
   photoFile?: File | null;
   backgroundImageFile?: File | null;
@@ -184,7 +184,7 @@ function AddConsultantInner() {
     isSurgeon: false,
     consultantTypes: {
       Physical: true,
-      Telephonic: false,
+      Telemedicine: false,
     },
     photoFile: null,
     backgroundImageFile: null,
@@ -376,7 +376,7 @@ function AddConsultantInner() {
     // Build consultant_type string from checkboxes
     const selectedTypes: string[] = [];
     if (form.consultantTypes.Physical) selectedTypes.push("Physical");
-    if (form.consultantTypes.Telephonic) selectedTypes.push("Telephonic");
+    if (form.consultantTypes.Telemedicine) selectedTypes.push("Telemedicine");
     const consultantType = selectedTypes.length > 0 ? selectedTypes.join(", ") : "Physical";
     
     console.log("🔍 Consultant Types State:", form.consultantTypes);
@@ -455,7 +455,7 @@ function AddConsultantInner() {
         isSurgeon: false,
         consultantTypes: {
           Physical: true,
-          Telephonic: false,
+          Telemedicine: false,
         },
         photoFile: null,
         backgroundImageFile: null,
@@ -490,7 +490,7 @@ function AddConsultantInner() {
               <input
                 className="w-full rounded-md border px-3 py-2"
                 placeholder="Consultant ID"
-                value={form.consultantId}
+                value={form.consultantId || ""}
                 onChange={onText("consultantId")}
                 required
               />
@@ -541,7 +541,7 @@ function AddConsultantInner() {
               <input
                 className="w-full rounded-md border px-3 py-2"
                 placeholder="Enter Consultant Name"
-                value={form.name}
+                value={form.name || ""}
                 onChange={onText("name")}
                 required
               />
@@ -553,8 +553,8 @@ function AddConsultantInner() {
                 type="number"
                 min={0}
                 className="w-full rounded-md border px-3 py-2"
-                placeholder="Enter Consultancy Fee"
-                value={form.consultancyFee}
+                placeholder="Enter Fee"
+                value={form.consultancyFee || ""}
                 onChange={onText("consultancyFee")}
               />
             </div>
@@ -564,7 +564,7 @@ function AddConsultantInner() {
               <input
                 type="date"
                 className="w-full rounded-md border px-3 py-2"
-                value={form.degreeCompletionDate}
+                value={form.degreeCompletionDate || ""}
                 onChange={onText("degreeCompletionDate")}
               />
             </div>
@@ -587,7 +587,7 @@ function AddConsultantInner() {
               <textarea
                 rows={4}
                 className="w-full rounded-md border px-3 py-2"
-                value={form.education}
+                value={form.education || ""}
                 onChange={onText("education")}
                 placeholder="One per line or comma separated"
               />
@@ -598,7 +598,7 @@ function AddConsultantInner() {
               <textarea
                 rows={4}
                 className="w-full rounded-md border px-3 py-2"
-                value={form.expertise}
+                value={form.expertise || ""}
                 onChange={onText("expertise")}
                 placeholder="One per line or comma separated"
               />
@@ -609,7 +609,7 @@ function AddConsultantInner() {
               <textarea
                 rows={4}
                 className="w-full rounded-md border px-3 py-2"
-                value={form.experience}
+                value={form.experience || ""}
                 onChange={onText("experience")}
                 placeholder="Years of experience and details"
               />
@@ -669,9 +669,9 @@ function AddConsultantInner() {
           </div>
         </section>
 
-        {/* Telephonic Consultation Timings */}
+        {/* Telemedicine Consultation Timings */}
         <section className="rounded-xl border bg-white/50 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Telephonic Consultation Timings</h2>
+          <h2 className="text-lg font-semibold">Telemedicine Consultation Timings</h2>
           <div className="mt-4 grid grid-cols-1 gap-4">
             <div className="hidden md:grid md:grid-cols-5 text-sm font-medium text-muted-foreground">
               <div />
@@ -819,18 +819,18 @@ function AddConsultantInner() {
                 <label className="inline-flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={form.consultantTypes.Telephonic}
+                    checked={form.consultantTypes.Telemedicine}
                     onChange={(e) =>
                       setForm((s) => ({
                         ...s,
                         consultantTypes: {
                           ...s.consultantTypes,
-                          Telephonic: e.target.checked,
+                          Telemedicine: e.target.checked,
                         },
                       }))
                     }
                   />
-                  <span>Telephonic</span>
+                  <span>Telemedicine</span>
                 </label>
               </div>
             </div>

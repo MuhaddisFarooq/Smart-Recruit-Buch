@@ -36,7 +36,7 @@ type Form = {
   doctor_type: string;
   consultant_types: {
     Physical: boolean;
-    Telephonic: boolean;
+    Telemedicine: boolean;
   };
   status: "active" | "inactive";
 };
@@ -245,7 +245,7 @@ function EditConsultantInner() {
           scheduleTelephonic = days.reduce((acc, k) => ({ ...acc, [k]: { ...defaultDay } }), {} as Record<DayKey, DaySchedule>);
         }
 
-        // Parse consultant_type from database (could be "Physical", "Telephonic", or "Physical, Telephonic")
+        // Parse consultant_type from database (could be "Physical", "Telemedicine", or "Physical, Telemedicine")
         const consultantTypesFromDb = d?.consultant_type || "Physical";
         const typesArray = consultantTypesFromDb.split(",").map((t: string) => t.trim());
         
@@ -267,7 +267,7 @@ function EditConsultantInner() {
           doctor_type: d?.doctor_type ?? "",
           consultant_types: {
             Physical: typesArray.includes("Physical"),
-            Telephonic: typesArray.includes("Telephonic"),
+            Telemedicine: typesArray.includes("Telemedicine") || typesArray.includes("Telephonic"),
           },
           status: d?.status === "inactive" ? "inactive" : "active",
         });
@@ -378,7 +378,7 @@ function EditConsultantInner() {
       // Build consultant_type string from checkboxes
       const selectedTypes: string[] = [];
       if (form.consultant_types.Physical) selectedTypes.push("Physical");
-      if (form.consultant_types.Telephonic) selectedTypes.push("Telephonic");
+      if (form.consultant_types.Telemedicine) selectedTypes.push("Telemedicine");
       const consultantTypeStr = selectedTypes.length > 0 ? selectedTypes.join(", ") : "Physical";
 
       // Build schedule JSON with physical/telephonic labels
@@ -548,18 +548,18 @@ function EditConsultantInner() {
               <label className="inline-flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={form.consultant_types.Telephonic}
+                  checked={form.consultant_types.Telemedicine}
                   onChange={(e) =>
                     setForm({
                       ...form,
                       consultant_types: {
                         ...form.consultant_types,
-                        Telephonic: e.target.checked,
+                        Telemedicine: e.target.checked,
                       },
                     })
                   }
                 />
-                <span>Telephonic</span>
+                <span>Telemedicine</span>
               </label>
             </div>
           </div>
@@ -672,9 +672,9 @@ function EditConsultantInner() {
           </div>
         </div>
 
-        {/* Telephonic Consultation Timings */}
+        {/* Telemedicine Consultation Timings */}
         <div className="rounded-lg border p-4">
-          <h2 className="text-lg font-semibold">Telephonic Consultation Timings</h2>
+          <h2 className="text-lg font-semibold">Telemedicine Consultation Timings</h2>
           <div className="mt-4 grid grid-cols-1 gap-4">
             <div className="hidden md:grid md:grid-cols-5 text-sm font-medium text-muted-foreground">
               <div />
