@@ -13,12 +13,12 @@ const EDITOR_ID = "blog-desc-editor";
 
 export default function AddBlogPage() {
   const router = useRouter();
-  
+
   // Permission check
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
   const canNew = hasPerm(perms, "blogs", "new");
-  
+
   // If no permission, redirect
   useEffect(() => {
     if (session && !canNew) {
@@ -88,7 +88,7 @@ export default function AddBlogPage() {
         const res = await fetch(`/api/hashtags?search=${encodeURIComponent(q)}`, { cache: "no-store" });
         const j = await res.json();
         if (!ignore && res.ok) setSuggestions(j.data || []);
-      } catch {}
+      } catch { }
       finally { setLoadingSuggest(false); }
     })();
     return () => { ignore = true; };

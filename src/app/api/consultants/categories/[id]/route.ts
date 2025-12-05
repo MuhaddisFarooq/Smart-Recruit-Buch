@@ -11,7 +11,7 @@ export const runtime = "nodejs"; // ✅ mysql2 -> Node
 async function readBody(req: NextRequest) {
   const ct = (req.headers.get("content-type") || "").toLowerCase();
   if (ct.includes("application/json")) {
-    try { return await req.json(); } catch {}
+    try { return await req.json(); } catch { }
   }
   if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
     const fd = await req.formData();
@@ -76,10 +76,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const b: any = await readBody(req);
 
-    const catNameRaw   = b.cat_name ?? b.name;
-    const mainRaw      = b.main_cat_id ?? b.mainCatId ?? b.main_id ?? b.mainCategoryId;
-    const descRaw      = b.cat_description ?? b.description;
-    const catImgRaw    = b.cat_img;
+    const catNameRaw = b.cat_name ?? b.name;
+    const mainRaw = b.main_cat_id ?? b.mainCatId ?? b.main_id ?? b.mainCategoryId;
+    const descRaw = b.cat_description ?? b.description;
+    const catImgRaw = b.cat_img;
 
     const sets: string[] = [];
     const args: any[] = [];

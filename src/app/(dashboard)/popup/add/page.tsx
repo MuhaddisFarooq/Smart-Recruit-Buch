@@ -7,9 +7,9 @@ import { notify } from "@/components/ui/notify";
 export default function AddPopupPage() {
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().slice(0,16)); // datetime-local
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().slice(0, 16)); // datetime-local
   const [endDate, setEndDate] = useState<string>(() => {
-    const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0,16);
+    const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 16);
   });
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [saving, setSaving] = useState(false);

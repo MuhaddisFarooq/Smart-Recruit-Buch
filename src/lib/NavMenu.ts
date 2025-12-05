@@ -1,8 +1,19 @@
 // src/lib/NavMenu.ts
-import { Gauge } from "lucide-react";
+import { Gauge, LucideIcon } from "lucide-react";
+
+export interface NavItem {
+  title: string;
+  url: string;
+  icon?: LucideIcon;
+  isActive?: boolean;
+  items?: {
+    title: string;
+    url: string;
+  }[];
+}
 
 // Keep exports the sidebar expects, but only include Dashboard
-export const navMain = [
+export const navMain: NavItem[] = [
   {
     title: "Dashboard",
     url: "/dashboard",

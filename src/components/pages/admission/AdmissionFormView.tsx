@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {getImageFileUrl} from "@/lib/utils"
+import { getImageFileUrl } from "@/lib/utils"
 
 const FALLBACK_IMAGES = {
   photo: "https://www.gravatar.com/avatar/?d=mp",
@@ -19,7 +19,8 @@ const getImageUrl = (url: string | undefined, type: 'photo' | 'document') => {
   if (!url) return FALLBACK_IMAGES[type];
   try {
     // new URL(url);
-    return getImageFileUrl(url);
+    const fileUrl = getImageFileUrl(url);
+    return fileUrl ?? FALLBACK_IMAGES[type];
   } catch {
     return FALLBACK_IMAGES[type];
   }
@@ -73,7 +74,7 @@ const isPdf = (url: string | undefined): boolean => {
 
 export default function AdmissionFormView({ admission }: { admission: Admission }) {
   const [selectedDoc, setSelectedDoc] = useState<{ url: string; title: string } | null>(null);
-console.log('admission', admission)
+  console.log('admission', admission)
   return (
     <div className="p-6">
       <Card className="shadow-lg">
@@ -84,9 +85,9 @@ console.log('admission', admission)
               <span className="text-gray-500 font-medium">#{admission?.applicationId}</span>
             </div>
             <span className={`text-sm px-4 py-1.5 rounded-full font-medium
-              ${admission?.status?.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                admission?.status?.toLowerCase() === 'approved' ? 'bg-green-100 text-green-800' : 
-                'bg-red-100 text-red-800'}`}>
+              ${admission?.status?.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                admission?.status?.toLowerCase() === 'approved' ? 'bg-green-100 text-green-800' :
+                  'bg-red-100 text-red-800'}`}>
               {admission?.status}
             </span>
           </CardTitle>
@@ -108,7 +109,7 @@ console.log('admission', admission)
                   <p><span className="font-medium">Nationality:</span> {admission?.nationality}</p>
                 </div>
               </div>
-              
+
               <div className="pb-4 border-b">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <Phone className="w-5 h-5" /> Contact Information
@@ -122,13 +123,13 @@ console.log('admission', admission)
                 </div>
               </div>
             </div>
-            
+
             <div className="flex justify-center">
               <div className="w-full max-w-sm">
-                <Image 
-                  src={getImageUrl(admission?.photo, 'photo')} 
-                  alt="Student Photo" 
-                  width={300} 
+                <Image
+                  src={getImageUrl(admission?.photo, 'photo')}
+                  alt="Student Photo"
+                  width={300}
                   height={300}
                   className="rounded-lg border shadow-md object-cover w-full"
                 />
@@ -179,7 +180,7 @@ console.log('admission', admission)
                 <p><span className="font-medium">Father's Occupation:</span> {admission?.fatherOccupation}</p>
                 <p><span className="font-medium">Source of Income:</span> {admission?.fathersoi}</p>
                 <p><span className="font-medium">Monthly Income:</span> {admission?.fatherMI}</p>
-                <p><span className="font-medium">Source of Tution Fee:</span> {admission?.sourceoftutionfee}</p>
+                <p><span className="font-medium">Source of Tuition Fee:</span> {admission?.sourceoftutionfee}</p>
               </div>
             </div>
 
@@ -214,20 +215,20 @@ console.log('admission', admission)
                 ].map((doc, idx) => (
                   <div key={idx} className="group relative">
                     <div className="aspect-[4/3] relative overflow-hidden rounded-lg border">
-                    {isPdf(doc?.url) ? (
-        <iframe
-          src={getImageUrl(doc?.url, 'document')}
-          className="w-full h-full border rounded-lg"
-        />
-      ) : (
-        <Image 
-        src={getImageUrl(doc?.url, 'document')}
-        alt={doc?.title}
-        fill
-        className="object-cover"
-      />
-      )}
-                      
+                      {isPdf(doc?.url) ? (
+                        <iframe
+                          src={getImageUrl(doc?.url, 'document')}
+                          className="w-full h-full border rounded-lg"
+                        />
+                      ) : (
+                        <Image
+                          src={getImageUrl(doc?.url, 'document')}
+                          alt={doc?.title}
+                          fill
+                          className="object-cover"
+                        />
+                      )}
+
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
                           onClick={() => setSelectedDoc(doc)}
@@ -253,19 +254,19 @@ console.log('admission', admission)
             <DialogTitle>{selectedDoc?.title}</DialogTitle>
           </DialogHeader>
           <div className="relative aspect-[16/9]">
-          {selectedDoc && isPdf(selectedDoc.url) ? (
-        <iframe
-          src={getImageUrl(selectedDoc.url, 'document')}
-          className="w-full h-full border rounded-lg"
-        />
-      ) : (
-        <Image
-          src={getImageUrl(selectedDoc?.url, 'document')}
-          alt={selectedDoc?.title || 'Document'}
-          fill
-          className="object-contain"
-        />
-      )}
+            {selectedDoc && isPdf(selectedDoc.url) ? (
+              <iframe
+                src={getImageUrl(selectedDoc.url, 'document')}
+                className="w-full h-full border rounded-lg"
+              />
+            ) : (
+              <Image
+                src={getImageUrl(selectedDoc?.url, 'document')}
+                alt={selectedDoc?.title || 'Document'}
+                fill
+                className="object-contain"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

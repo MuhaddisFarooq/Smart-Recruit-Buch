@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     const mainIdRaw = searchParams.get("main_id");
-    const mainName  = searchParams.get("main");
+    const mainName = searchParams.get("main");
     const hasPagingSignals =
       searchParams.has("page") || searchParams.has("pageSize") || searchParams.has("search");
 
@@ -130,14 +130,14 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
-    const cat_name        = String(body?.cat_name || "").trim();
+    const cat_name = String(body?.cat_name || "").trim();
     const main_cat_id_raw = body?.main_cat_id;
-    const main_cat_id     = Number(main_cat_id_raw);
-    const rawImg          = body?.cat_img;
-    const cat_img         = rawImg == null || rawImg === "" ? null : String(rawImg).trim();
+    const main_cat_id = Number(main_cat_id_raw);
+    const rawImg = body?.cat_img;
+    const cat_img = rawImg == null || rawImg === "" ? null : String(rawImg).trim();
 
     const cat_description_raw = body?.cat_description ?? body?.description;
-    const cat_description     = cat_description_raw == null ? null : String(cat_description_raw).trim();
+    const cat_description = cat_description_raw == null ? null : String(cat_description_raw).trim();
 
     if (!cat_name || !Number.isInteger(main_cat_id)) {
       return NextResponse.json(

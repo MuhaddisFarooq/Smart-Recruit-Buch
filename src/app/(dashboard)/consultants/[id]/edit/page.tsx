@@ -29,7 +29,7 @@ type Form = {
   aoe: string;
   experience: string;
   schedulePhysical: Record<DayKey, DaySchedule>;
-  scheduleTelephonic: Record<DayKey, DaySchedule>;
+
   profile_pic: string;           // store "consultants/<file>" in DB
   background_image: string;      // store background image filename
   employment_status: string;
@@ -88,7 +88,7 @@ async function compressImage(file: File): Promise<Blob> {
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) return file;
-  
+
   // Handle transparency for PNG files
   const isPNG = file.type === "image/png";
   if (isPNG) {
@@ -99,7 +99,7 @@ async function compressImage(file: File): Promise<Blob> {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, width, height);
   }
-  
+
   ctx.drawImage(img, 0, 0, width, height);
 
   // Use PNG format for PNG files to preserve transparency, JPEG for others
@@ -117,13 +117,13 @@ async function tryUpload(file: File): Promise<string> {
   try {
     const compressed = (await compressImage(file)) as Blob;
     const fd = new FormData();
-    
+
     // Preserve file extension based on compressed blob type
     const isPNG = compressed.type === "image/png";
     const extension = isPNG ? ".png" : ".jpg";
     const baseName = file.name.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "").replace(/\.[^.]+$/, "") || "photo";
     const outName = baseName + extension;
-    
+
     // Create file with correct MIME type
     const uploadFile = new File([compressed], outName, { type: compressed.type });
     fd.append("file", uploadFile);
@@ -209,12 +209,12 @@ function EditConsultantInner() {
             const daySlots = Array.isArray(scheduleData?.[k]) ? scheduleData[k] : [];
             const morning = daySlots[0] || {};
             const evening = daySlots[1] || {};
-            
+
             const morningStartParsed = parseTime(morning.start || "");
             const morningEndParsed = parseTime(morning.end || "");
             const eveningStartParsed = parseTime(evening.start || "");
             const eveningEndParsed = parseTime(evening.end || "");
-            
+
             out[k] = {
               morningStart: morningStartParsed?.time || "",
               morningEnd: morningEndParsed?.time || "",
@@ -226,29 +226,25 @@ function EditConsultantInner() {
         };
 
         let schedulePhysical: Record<DayKey, DaySchedule>;
-        let scheduleTelephonic: Record<DayKey, DaySchedule>;
 
         try {
           const scheduleRaw = JSON.parse(d?.schedule || "{}");
-          
+
           // Check if new format (with physical/telephonic labels)
           if (scheduleRaw.physical || scheduleRaw.telephonic) {
             schedulePhysical = parseScheduleForType(scheduleRaw.physical || {});
-            scheduleTelephonic = parseScheduleForType(scheduleRaw.telephonic || {});
           } else {
             // Old format - use same schedule for both
             schedulePhysical = parseScheduleForType(scheduleRaw);
-            scheduleTelephonic = days.reduce((acc, k) => ({ ...acc, [k]: { ...defaultDay } }), {} as Record<DayKey, DaySchedule>);
           }
         } catch {
           schedulePhysical = days.reduce((acc, k) => ({ ...acc, [k]: { ...defaultDay } }), {} as Record<DayKey, DaySchedule>);
-          scheduleTelephonic = days.reduce((acc, k) => ({ ...acc, [k]: { ...defaultDay } }), {} as Record<DayKey, DaySchedule>);
         }
 
         // Parse consultant_type from database (could be "Physical", "Telemedicine", or "Physical, Telemedicine")
         const consultantTypesFromDb = d?.consultant_type || "Physical";
         const typesArray = consultantTypesFromDb.split(",").map((t: string) => t.trim());
-        
+
         setForm({
           consultant_id: d?.consultant_id || "",
           name: d?.name || "",
@@ -260,7 +256,7 @@ function EditConsultantInner() {
           aoe: d?.aoe ?? "",
           experience: d?.experience ?? "",
           schedulePhysical,
-          scheduleTelephonic,
+
           profile_pic: d?.profile_pic ?? "",
           background_image: d?.background_image ?? "",
           employment_status: d?.employment_status ?? "",
@@ -299,8 +295,8 @@ function EditConsultantInner() {
       }
     })();
 
-    return () => { 
-      if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current); 
+    return () => {
+      if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current);
       if (prevBackgroundObjectUrl.current) URL.revokeObjectURL(prevBackgroundObjectUrl.current);
     };
   }, [id]);
@@ -406,9 +402,8 @@ function EditConsultantInner() {
 
       const scheduleData = {
         physical: buildForType(form.schedulePhysical),
-        telephonic: buildForType(form.scheduleTelephonic),
       };
-      
+
       console.log("📅 Schedule being saved:", JSON.stringify(scheduleData, null, 2));
 
       const r = await fetch(`/api/consultants/${id}`, {
@@ -448,7 +443,7 @@ function EditConsultantInner() {
   }
 
   if (loading) return <div className="p-6">Loading…</div>;
-  if (!form)   return <div className="p-6">Not found.</div>;
+  if (!form) return <div className="p-6">Not found.</div>;
 
   return (
     <div className="p-6">
@@ -460,8 +455,8 @@ function EditConsultantInner() {
           <div>
             <label className="text-sm font-medium">Consultant ID</label>
             <input className="mt-1 w-full rounded-md border px-3 py-2"
-                   value={form.consultant_id}
-                   onChange={(e) => setForm({ ...form, consultant_id: e.target.value })}/>
+              value={form.consultant_id}
+              onChange={(e) => setForm({ ...form, consultant_id: e.target.value })} />
           </div>
           <div>
             <label className="text-sm font-medium">Main Speciality Category</label>
@@ -504,64 +499,44 @@ function EditConsultantInner() {
           <div>
             <label className="text-sm font-medium">Name</label>
             <input className="mt-1 w-full rounded-md border px-3 py-2"
-                   value={form.name}
-                   onChange={(e) => setForm({ ...form, name: e.target.value })}/>
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div>
             <label className="text-sm font-medium">Consultancy Fee</label>
             <input type="number" className="mt-1 w-full rounded-md border px-3 py-2"
-                   value={form.fee as any}
-                   onChange={(e) => setForm({ ...form, fee: e.target.value })}/>
+              value={form.fee as any}
+              onChange={(e) => setForm({ ...form, fee: e.target.value })} />
           </div>
           <div>
             <label className="text-sm font-medium">Degree Completion Date</label>
             <input type="date" className="mt-1 w-full rounded-md border px-3 py-2"
-                   value={form.dcd as any}
-                   onChange={(e) => setForm({ ...form, dcd: e.target.value })}/>
+              value={form.dcd as any}
+              onChange={(e) => setForm({ ...form, dcd: e.target.value })} />
           </div>
           <div>
             <label className="text-sm font-medium">Doctor Type</label>
             <input className="mt-1 w-full rounded-md border px-3 py-2"
-                   value={form.doctor_type}
-                   onChange={(e) => setForm({ ...form, doctor_type: e.target.value })}
-                   placeholder='e.g. "Surgeon" (or leave blank)'/>
+              value={form.doctor_type}
+              onChange={(e) => setForm({ ...form, doctor_type: e.target.value })}
+              placeholder='e.g. "Surgeon" (or leave blank)' />
           </div>
           <div>
+            {/* Consultant Type - Hidden/Removed as we only support Physical now */}
+            {/* 
             <label className="text-sm font-medium">Consultant Type</label>
             <div className="mt-1 flex flex-col gap-2">
               <label className="inline-flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={form.consultant_types.Physical}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      consultant_types: {
-                        ...form.consultant_types,
-                        Physical: e.target.checked,
-                      },
-                    })
-                  }
+                  disabled
+                  readOnly
                 />
                 <span>Physical</span>
               </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.consultant_types.Telemedicine}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      consultant_types: {
-                        ...form.consultant_types,
-                        Telemedicine: e.target.checked,
-                      },
-                    })
-                  }
-                />
-                <span>Telemedicine</span>
-              </label>
             </div>
+            */}
           </div>
         </div>
 
@@ -570,30 +545,30 @@ function EditConsultantInner() {
           <div>
             <label className="text-sm font-medium">Specialties (comma/newline)</label>
             <textarea rows={3} className="mt-1 w-full rounded-md border px-3 py-2"
-                      value={form.specialties}
-                      onChange={(e) => setForm({ ...form, specialties: e.target.value })}/>
+              value={form.specialties}
+              onChange={(e) => setForm({ ...form, specialties: e.target.value })} />
           </div>
           <div>
             <label className="text-sm font-medium">Areas of Expertise (comma/newline)</label>
             <textarea rows={3} className="mt-1 w-full rounded-md border px-3 py-2"
-                      value={form.aoe}
-                      onChange={(e) => setForm({ ...form, aoe: e.target.value })}/>
+              value={form.aoe}
+              onChange={(e) => setForm({ ...form, aoe: e.target.value })} />
           </div>
         </div>
 
         <div>
           <label className="text-sm font-medium">Education (comma/newline)</label>
           <textarea rows={3} className="mt-1 w-full rounded-md border px-3 py-2"
-                    value={form.education}
-                    onChange={(e) => setForm({ ...form, education: e.target.value })}/>
+            value={form.education}
+            onChange={(e) => setForm({ ...form, education: e.target.value })} />
         </div>
-        
+
         <div>
           <label className="text-sm font-medium">Experience</label>
           <textarea rows={3} className="mt-1 w-full rounded-md border px-3 py-2"
-                    value={form.experience}
-                    onChange={(e) => setForm({ ...form, experience: e.target.value })}
-                    placeholder="Years of experience and details"/>
+            value={form.experience}
+            onChange={(e) => setForm({ ...form, experience: e.target.value })}
+            placeholder="Years of experience and details" />
         </div>
 
         {/* Physical Consultation Timings */}
@@ -611,7 +586,7 @@ function EditConsultantInner() {
             {days.map((d) => (
               <div key={`physical-${d}`} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
                 <div className="font-medium capitalize">{d}</div>
-                
+
                 <input
                   type="time"
                   step="60"
@@ -625,7 +600,7 @@ function EditConsultantInner() {
                     }
                   })}
                 />
-                
+
                 <input
                   type="time"
                   step="60"
@@ -639,7 +614,7 @@ function EditConsultantInner() {
                     }
                   })}
                 />
-                
+
                 <input
                   type="time"
                   step="60"
@@ -653,7 +628,7 @@ function EditConsultantInner() {
                     }
                   })}
                 />
-                
+
                 <input
                   type="time"
                   step="60"
@@ -672,81 +647,7 @@ function EditConsultantInner() {
           </div>
         </div>
 
-        {/* Telemedicine Consultation Timings */}
-        <div className="rounded-lg border p-4">
-          <h2 className="text-lg font-semibold">Telemedicine Consultation Timings</h2>
-          <div className="mt-4 grid grid-cols-1 gap-4">
-            <div className="hidden md:grid md:grid-cols-5 text-sm font-medium text-muted-foreground">
-              <div />
-              <div className="text-center">Morning Start</div>
-              <div className="text-center">Morning End</div>
-              <div className="text-center">Evening Start</div>
-              <div className="text-center">Evening End</div>
-            </div>
 
-            {days.map((d) => (
-              <div key={`telephonic-${d}`} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
-                <div className="font-medium capitalize">{d}</div>
-                
-                <input
-                  type="time"
-                  step="60"
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[d].morningStart}
-                  onChange={(e) => setForm({
-                    ...form,
-                    scheduleTelephonic: {
-                      ...form.scheduleTelephonic,
-                      [d]: { ...form.scheduleTelephonic[d], morningStart: e.target.value }
-                    }
-                  })}
-                />
-                
-                <input
-                  type="time"
-                  step="60"
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[d].morningEnd}
-                  onChange={(e) => setForm({
-                    ...form,
-                    scheduleTelephonic: {
-                      ...form.scheduleTelephonic,
-                      [d]: { ...form.scheduleTelephonic[d], morningEnd: e.target.value }
-                    }
-                  })}
-                />
-                
-                <input
-                  type="time"
-                  step="60"
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[d].eveningStart}
-                  onChange={(e) => setForm({
-                    ...form,
-                    scheduleTelephonic: {
-                      ...form.scheduleTelephonic,
-                      [d]: { ...form.scheduleTelephonic[d], eveningStart: e.target.value }
-                    }
-                  })}
-                />
-                
-                <input
-                  type="time"
-                  step="60"
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                  value={form.scheduleTelephonic[d].eveningEnd}
-                  onChange={(e) => setForm({
-                    ...form,
-                    scheduleTelephonic: {
-                      ...form.scheduleTelephonic,
-                      [d]: { ...form.scheduleTelephonic[d], eveningEnd: e.target.value }
-                    }
-                  })}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Upload + employment + surgeon */}
         <div className="rounded-lg border p-4">
@@ -767,10 +668,10 @@ function EditConsultantInner() {
                   )}
                 </div>
 
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto}/>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
                 <button type="button"
-                        onClick={() => { if (fileRef.current) fileRef.current.value = ""; fileRef.current?.click(); }}
-                        className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80">
+                  onClick={() => { if (fileRef.current) fileRef.current.value = ""; fileRef.current?.click(); }}
+                  className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80">
                   Choose Image
                 </button>
                 {form.profile_pic ? <span className="text-xs text-gray-500">Current file: {form.profile_pic}</span> : null}
@@ -813,10 +714,10 @@ function EditConsultantInner() {
                   )}
                 </div>
 
-                <input ref={backgroundFileRef} type="file" accept="image/*" className="hidden" onChange={onPickBackgroundImage}/>
+                <input ref={backgroundFileRef} type="file" accept="image/*" className="hidden" onChange={onPickBackgroundImage} />
                 <button type="button"
-                        onClick={() => { if (backgroundFileRef.current) backgroundFileRef.current.value = ""; backgroundFileRef.current?.click(); }}
-                        className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80">
+                  onClick={() => { if (backgroundFileRef.current) backgroundFileRef.current.value = ""; backgroundFileRef.current?.click(); }}
+                  className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow hover:bg-black/80">
                   Choose Background
                 </button>
                 {form.background_image ? <span className="text-xs text-gray-500">Current file: {form.background_image}</span> : null}
@@ -828,11 +729,11 @@ function EditConsultantInner() {
             <div>
               <h3 className="text-sm font-medium mb-2">Employment</h3>
               <div className="flex flex-wrap items-center gap-4 text-sm">
-                {(["Permanent","Visiting","International Visiting Doctor","Associate Consultant"] as const).map((opt) => (
+                {(["Permanent", "Visiting", "International Visiting Doctor", "Associate Consultant"] as const).map((opt) => (
                   <label key={opt} className="inline-flex items-center gap-2">
                     <input type="radio" name="employment"
-                           checked={form.employment_status === opt}
-                           onChange={() => setForm({ ...form, employment_status: opt })}/>
+                      checked={form.employment_status === opt}
+                      onChange={() => setForm({ ...form, employment_status: opt })} />
                     <span>{opt}</span>
                   </label>
                 ))}
@@ -843,8 +744,8 @@ function EditConsultantInner() {
               <h3 className="text-sm font-medium mb-2">Doctor Type</h3>
               <label className="inline-flex items-center gap-2 text-sm">
                 <input type="checkbox"
-                       checked={form.doctor_type?.toLowerCase() === "surgeon"}
-                       onChange={(e) => setForm({ ...form, doctor_type: e.target.checked ? "Surgeon" : "" })}/>
+                  checked={form.doctor_type?.toLowerCase() === "surgeon"}
+                  onChange={(e) => setForm({ ...form, doctor_type: e.target.checked ? "Surgeon" : "" })} />
                 <span>Surgeon</span>
               </label>
             </div>
@@ -855,8 +756,8 @@ function EditConsultantInner() {
         <div className="flex items-center gap-4">
           <label className="text-sm font-medium">Status</label>
           <select className="rounded-md border px-3 py-2"
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
             <option value="active">Active</option>
             <option value="inactive">InActive</option>
           </select>
@@ -864,7 +765,7 @@ function EditConsultantInner() {
 
         <div className="flex justify-end">
           <button onClick={save} disabled={saving}
-                  className="rounded-md bg-[#c8e967] px-4 py-2 font-medium text-black hover:bg-[#b9db58] disabled:opacity-60">
+            className="rounded-md bg-[#c8e967] px-4 py-2 font-medium text-black hover:bg-[#b9db58] disabled:opacity-60">
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
