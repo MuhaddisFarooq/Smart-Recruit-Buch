@@ -1,7 +1,7 @@
 // src/app/(dashboard)/users/[id]/edit/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { notify } from "@/components/ui/notify";
 import type { PermissionMap, PermAction } from "@/lib/perms-client";
@@ -37,18 +37,18 @@ export default function EditUserPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [employeeId, setEmployeeId]   = useState("");
-  const [name, setName]               = useState("");
-  const [department, setDepartment]   = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [name, setName] = useState("");
+  const [department, setDepartment] = useState("");
   const [designation, setDesignation] = useState("");
-  const [status, setStatus]           = useState<"active" | "inactive">("active");
+  const [status, setStatus] = useState<"active" | "inactive">("active");
 
-  const [email, setEmail]             = useState("");
+  const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
-  const [image, setImage]             = useState<File | null>(null);
+  const [image, setImage] = useState<File | null>(null);
   const [existingPic, setExistingPic] = useState<string | null>(null);
-  const [preview, setPreview]         = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
 
   // groups
   const [groups, setGroups] = useState<UserGroup[]>([]);
@@ -155,10 +155,7 @@ export default function EditUserPage() {
     }
   }
 
-  const selectedGroup = useMemo(
-    () => (typeof groupId === "number" ? groups.find(g => g.id === groupId) : undefined),
-    [groups, groupId]
-  );
+
 
   if (loading) return <div className="p-6">Loading…</div>;
 
@@ -270,8 +267,7 @@ export default function EditUserPage() {
           </div>
         </div>
 
-        {/* Live permissions preview */}
-        {selectedGroup ? <PermissionsPreview group={selectedGroup} /> : null}
+
 
         <div className="flex items-center gap-2">
           <button
@@ -295,41 +291,4 @@ export default function EditUserPage() {
   );
 }
 
-function PermissionsPreview({ group }: { group: UserGroup }) {
-  const entries = Object.entries(group.permissions || {});
-  if (!entries.length) return null;
 
-  const order: PermAction[] = ["view", "new", "edit", "delete", "export"];
-
-  return (
-    <div className="rounded-lg border p-4 bg-gray-50">
-      <div className="font-medium mb-2 text-sm">
-        Permissions for <span className="font-semibold">{group.name}</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-xs">
-          <thead>
-            <tr className="bg-white">
-              <th className="text-left px-3 py-2">Module</th>
-              {order.map((a) => (
-                <th key={a} className="px-3 py-2 capitalize text-center">{a}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map(([mod, acts], i) => (
-              <tr key={mod} className={i % 2 ? "bg-white" : "bg-gray-100/60"}>
-                <td className="px-3 py-2 font-medium">{mod}</td>
-                {order.map((a) => (
-                  <td key={a} className="px-3 py-2 text-center">
-                    {acts?.[a] ? "✓" : "—"}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}

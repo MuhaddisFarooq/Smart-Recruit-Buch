@@ -24,7 +24,9 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - uploads (uploaded files)
+     * - images (static images)
+     * - img (static images)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|uploads).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|uploads|images|img|.*\\.(?:jpg|jpeg|gif|png|svg|ico|css|js|mp3|wav)$).*)',
   ],
 };
