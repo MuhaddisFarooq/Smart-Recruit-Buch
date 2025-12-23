@@ -42,6 +42,7 @@ type FormState = {
     Physical: boolean;
     Telemedicine: boolean;
   };
+  isFeatured: boolean;
   photoFile?: File | null;
   backgroundImageFile?: File | null;
 };
@@ -178,6 +179,7 @@ function AddConsultantInner() {
       Physical: true,
       Telemedicine: false,
     },
+    isFeatured: false,
     photoFile: null,
     backgroundImageFile: null,
   });
@@ -389,6 +391,7 @@ function AddConsultantInner() {
       employment_status: form.employment,
       doctor_type: form.isSurgeon ? "Surgeon" : "",
       consultant_type: consultantType,
+      is_featured: form.isFeatured,
     };
 
     console.log("📦 Full payload being sent:", JSON.stringify(payload, null, 2));
@@ -740,16 +743,28 @@ function AddConsultantInner() {
             {/* Doctor Type */}
             <div>
               <h3 className="text-sm font-medium mb-2">Doctor Type</h3>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.isSurgeon}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, isSurgeon: e.target.checked }))
-                  }
-                />
-                <span>Surgeon</span>
-              </label>
+              <div className="flex flex-col gap-3">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.isSurgeon}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, isSurgeon: e.target.checked }))
+                    }
+                  />
+                  <span>Surgeon</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.isFeatured}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, isFeatured: e.target.checked }))
+                    }
+                  />
+                  <span>Featured on Home Slider</span>
+                </label>
+              </div>
             </div>
           </div>
         </section>

@@ -31,7 +31,7 @@ function normalizeSchedule(input: any): string {
     if (input && typeof input === "object") {
       return JSON.stringify(input);
     }
-  } catch {}
+  } catch { }
   return JSON.stringify({});
 }
 
@@ -88,7 +88,10 @@ export async function GET(req: NextRequest) {
         c.profile_pic,
         c.status,
         c.fee,
-        c.employment_status
+        c.status,
+        c.fee,
+        c.employment_status,
+        c.is_featured
       FROM consultant c
       ${whereSql}
       ORDER BY c.id ASC
@@ -156,14 +159,15 @@ export async function POST(req: NextRequest) {
         consultant_id, cat_name, name, fee, dcd,
         specialties, education, aoe, experience, schedule,
         profile_pic, background_image, employment_status, doctor_type, consultant_type,
-        status, addedBy, addedDate
+        profile_pic, background_image, employment_status, doctor_type, consultant_type,
+        status, is_featured, addedBy, addedDate
       )
       VALUES
       (
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
-        'active', ?, NOW()
+        'active', ?, ?, NOW()
       )
     `;
 
@@ -186,6 +190,9 @@ export async function POST(req: NextRequest) {
       String(b.doctor_type ?? ""),
       consultantType,
 
+      consultantType,
+      'active',
+      b.is_featured ? 1 : 0,
       addedBy,
     ]);
 

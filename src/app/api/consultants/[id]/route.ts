@@ -32,6 +32,7 @@ export async function GET(
       SELECT id, consultant_id, cat_name, name, fee, dcd,
              specialties, education, aoe, experience, schedule,
              profile_pic, background_image, employment_status, doctor_type, consultant_type, status,
+             profile_pic, background_image, employment_status, doctor_type, consultant_type, status, is_featured,
              updatedBy, updatedDate
       FROM consultant
       WHERE id = ?
@@ -95,13 +96,13 @@ export async function PATCH(
     };
 
     if (body.consultant_id !== undefined) set("consultant_id", String(body.consultant_id).trim());
-    if (body.cat_name       !== undefined) set("cat_name",       String(body.cat_name).trim());
-    if (body.name           !== undefined) set("name",           String(body.name).trim());
-    if (body.fee            !== undefined) set("fee",            body.fee ?? null);
-    if (body.dcd            !== undefined) set("dcd",            body.dcd ?? null);
+    if (body.cat_name !== undefined) set("cat_name", String(body.cat_name).trim());
+    if (body.name !== undefined) set("name", String(body.name).trim());
+    if (body.fee !== undefined) set("fee", body.fee ?? null);
+    if (body.dcd !== undefined) set("dcd", body.dcd ?? null);
 
-    if (body.specialties    !== undefined) set("specialties", String(body.specialties || "").trim() || null);
-    if (body.education      !== undefined) set("education",   String(body.education   || "").trim() || null);
+    if (body.specialties !== undefined) set("specialties", String(body.specialties || "").trim() || null);
+    if (body.education !== undefined) set("education", String(body.education || "").trim() || null);
     if (body.aoe !== undefined || body.expertise !== undefined) {
       set("aoe", String((body.aoe ?? body.expertise) || "").trim() || null);
     }
@@ -117,13 +118,17 @@ export async function PATCH(
       }
     }
 
-    if (body.profile_pic       !== undefined) set("profile_pic",       String(body.profile_pic || ""));
-    if (body.background_image  !== undefined) set("background_image",  String(body.background_image || ""));
+    if (body.profile_pic !== undefined) set("profile_pic", String(body.profile_pic || ""));
+    if (body.background_image !== undefined) set("background_image", String(body.background_image || ""));
     if (body.employment_status !== undefined) set("employment_status", String(body.employment_status || ""));
-    if (body.doctor_type       !== undefined) set("doctor_type",       String(body.doctor_type || ""));
-    if (body.consultant_type   !== undefined) set("consultant_type",   String(body.consultant_type || "Physical"));
-    if (body.status            !== undefined) {
+    if (body.doctor_type !== undefined) set("doctor_type", String(body.doctor_type || ""));
+    if (body.consultant_type !== undefined) set("consultant_type", String(body.consultant_type || "Physical"));
+    if (body.status !== undefined) {
       set("status", String(body.status).toLowerCase() === "active" ? "active" : "inactive");
+      set("status", String(body.status).toLowerCase() === "active" ? "active" : "inactive");
+    }
+    if (body.is_featured !== undefined) {
+      set("is_featured", body.is_featured ? 1 : 0);
     }
 
     set("updatedBy", actorEmail);
