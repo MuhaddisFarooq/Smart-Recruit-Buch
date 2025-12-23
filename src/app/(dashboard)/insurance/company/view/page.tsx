@@ -32,7 +32,23 @@ export default function ViewInsuranceCompanyPage() {
   // Get session and permissions
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canView = hasPerm(perms, "insurance", "view");
+  // canNew if we had an Add button
+  const canEdit = hasPerm(perms, "insurance", "edit");
+  const canDelete = hasPerm(perms, "insurance", "delete");
   const canExport = hasPerm(perms, "insurance", "export");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Export configuration
   const exportColumns = [
@@ -98,7 +114,7 @@ export default function ViewInsuranceCompanyPage() {
       const nextPage = remain <= 0 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
       await loadAt(nextPage, pageSize, search);
-    } catch {/* toast already shown */}
+    } catch {/* toast already shown */ }
   }
 
   const logoUrl = (s?: string | null) => (!s ? undefined : s.startsWith("/") ? s : `/uploads/${s}`);
@@ -107,7 +123,7 @@ export default function ViewInsuranceCompanyPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Insurance Company</h1>
-        
+
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportButton
@@ -176,16 +192,22 @@ export default function ViewInsuranceCompanyPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Link
-                      href={`/insurance/company/${r.id}/edit`}
-                      title="Edit"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                    >✎</Link>
-                    <button
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                      title="Delete"
-                      onClick={() => onDelete(r.id)}
-                    >🗑</button>
+                    {canEdit && (
+                      <Link
+                        href={`/insurance/company/${r.id}/edit`}
+                        title="Edit"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                      >✎</Link>
+                    )}
+
+                    {canDelete && (
+                      <button
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                        title="Delete"
+                        onClick={() => onDelete(r.id)}
+                      >🗑</button>
+                    )}
+                    {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>
@@ -198,13 +220,13 @@ export default function ViewInsuranceCompanyPage() {
         <div>
           {rows.length > 0
             ? <>Showing <strong>{Math.min((page - 1) * pageSize + 1, total)}</strong> to{" "}
-                 <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
+              <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
             : <>Showing 0 entries</>}
         </div>
         <nav className="flex items-center gap-1">
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page <= 1}>Previous</button>
+            onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page <= 1}>Previous</button>
           {Array.from({ length: totalPages }).map((_, i) => {
             const p = i + 1;
             const show = p <= 5 || p === totalPages || Math.abs(p - page) <= 1;
@@ -218,8 +240,8 @@ export default function ViewInsuranceCompanyPage() {
             );
           })}
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page >= totalPages}>Next</button>
+            onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page >= totalPages}>Next</button>
         </nav>
       </div>
     </div>

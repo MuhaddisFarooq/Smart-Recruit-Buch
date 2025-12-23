@@ -434,7 +434,9 @@ function EditConsultantInner() {
       }
 
       notify.success("Consultant updated successfully.");
-      router.push("/consultants/view");
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (e: any) {
       notify.error(e?.message || "Update failed.");
     } finally {
@@ -564,11 +566,14 @@ function EditConsultantInner() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Experience</label>
-          <textarea rows={3} className="mt-1 w-full rounded-md border px-3 py-2"
+          <label className="text-sm font-medium">Experience (Years)</label>
+          <input
+            type="number"
+            min="0"
+            className="mt-1 w-full rounded-md border px-3 py-2"
             value={form.experience}
             onChange={(e) => setForm({ ...form, experience: e.target.value })}
-            placeholder="Years of experience and details" />
+            placeholder="Years of experience" />
         </div>
 
         {/* Physical Consultation Timings */}

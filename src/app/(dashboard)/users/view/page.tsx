@@ -8,6 +8,7 @@ import { useConfirm } from "@/components/ui/confirm-provider";
 import { hasPerm, type PermissionMap } from "@/lib/perms-client";
 import ExportButton from "@/components/common/ExportButton";
 
+
 type Row = {
   id: number;
   employee_id: string | null;
@@ -35,7 +36,22 @@ export default function ViewUsersPage() {
   // Get session and permissions
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canView = hasPerm(perms, "users", "view");
+  const canEdit = hasPerm(perms, "users", "edit");
+  const canDelete = hasPerm(perms, "users", "delete");
   const canExport = hasPerm(perms, "users", "export");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Export configuration
   const exportColumns = [
@@ -46,6 +62,9 @@ export default function ViewUsersPage() {
     { key: "designation", header: "Designation", width: 20 },
     { key: "status", header: "Status", width: 12 },
   ];
+
+
+
 
   async function load(p = page, term = search) {
     try {
@@ -140,7 +159,7 @@ export default function ViewUsersPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Users</h1>
-        
+
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportButton
@@ -161,12 +180,6 @@ export default function ViewUsersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Link
-          href="/users/add"
-          className="rounded-md bg-[#c8e967] px-3 py-2 text-sm font-medium text-black hover:bg-[#b9db58]"
-        >
-          + Add User
-        </Link>
       </div>
 
       <div className="overflow-auto rounded-xl border bg-white shadow-sm">
@@ -216,40 +229,46 @@ export default function ViewUsersPage() {
                   </td>
                   <td className="px-3 py-2">
                     <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        r.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "active"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                        }`}
                     >
                       {r.status === "active" ? "Active" : "InActive"}
                     </span>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-3">
-                      <button
-                        title="Toggle status"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                        onClick={() => toggle(r.id)}
-                      >
-                        ●
-                      </button>
+                      {canEdit && (
+                        <button
+                          title="Toggle status"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                          onClick={() => toggle(r.id)}
+                        >
+                          ●
+                        </button>
+                      )}
 
-                      <Link
-                        href={`/users/${r.id}/edit`}
-                        title="Edit"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                      >
-                        ✎
-                      </Link>
+                      {canEdit && (
+                        <Link
+                          href={`/users/${r.id}/edit`}
+                          title="Edit"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          ✎
+                        </Link>
+                      )}
 
-                      <button
-                        title="Delete"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                        onClick={() => removeUser(r.id)}
-                      >
-                        🗑
-                      </button>
+                      {canDelete && (
+                        <button
+                          title="Delete"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                          onClick={() => removeUser(r.id)}
+                        >
+                          🗑
+                        </button>
+                      )}
+                      {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                     </div>
                   </td>
                 </tr>

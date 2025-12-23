@@ -112,7 +112,15 @@ function CategoriesInner() {
     setEditing(row);
     // Set initial image preview if exists
     if (row.cat_img) {
-      setPreview(`/uploads/categories/${row.cat_img}`);
+      const src = row.cat_img;
+      const isUrl = src.startsWith("http") || src.startsWith("/");
+      const hasFolder = src.startsWith("categories/") || src.startsWith("uploads/");
+      const finalSrc = isUrl
+        ? src
+        : hasFolder
+          ? `/uploads/${src}`
+          : `/uploads/categories/${src}`;
+      setPreview(finalSrc);
       setUploadedFilename(row.cat_img);
     } else {
       setPreview(null);
@@ -148,7 +156,7 @@ function CategoriesInner() {
 
     let maxSide = maxSideStart;
     let quality = 0.85;
-    
+
     const isPNG = file.type === "image/png";
 
     const draw = () => {
@@ -162,12 +170,12 @@ function CategoriesInner() {
       canvas.width = nw;
       canvas.height = nh;
       const ctx = canvas.getContext("2d")!;
-      
+
       if (!isPNG) {
         ctx.fillStyle = "#fff";
         ctx.fillRect(0, 0, nw, nh);
       }
-      
+
       ctx.drawImage(img, 0, 0, nw, nh);
 
       return new Promise<Blob | null>((res) => {
@@ -190,11 +198,11 @@ function CategoriesInner() {
 
   async function uploadBlobToCategories(blob: Blob, original = "category.jpg") {
     const fd = new FormData();
-    
+
     const isPNG = blob.type === "image/png";
     const extension = isPNG ? ".png" : ".jpg";
     const fileName = original.replace(/\.[^.]+$/, extension);
-    
+
     fd.append(
       "file",
       new File([blob], fileName, { type: blob.type })
@@ -389,7 +397,7 @@ function CategoriesInner() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Consultant Departments</h1>
-        
+
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportButton
@@ -666,9 +674,8 @@ function PageBtn({
 }) {
   return (
     <button
-      className={`min-w-[2rem] rounded-md border px-2 py-1 ${
-        active ? "border-lime-600 bg-lime-600 text-white" : "hover:bg-gray-50"
-      }`}
+      className={`min-w-[2rem] rounded-md border px-2 py-1 ${active ? "border-lime-600 bg-lime-600 text-white" : "hover:bg-gray-50"
+        }`}
       onClick={onClick}
     >
       {n}

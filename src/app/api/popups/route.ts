@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth/options";
 import path from "path";
 import { promises as fs } from "fs";
 import { saveOptimizedImage } from "../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,15 @@ async function ensureTable() {
 export async function GET(req: NextRequest) {
   try {
     await ensureTable();
+
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "popup", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const sp = new URL(req.url).searchParams;
     const page = Math.max(1, Number(sp.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(sp.get("pageSize") || 10)));
@@ -77,6 +87,14 @@ export async function POST(req: NextRequest) {
   try {
     await ensureTable();
     const actor = await actorFromSession();
+
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "popup", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("multipart/form-data")) {

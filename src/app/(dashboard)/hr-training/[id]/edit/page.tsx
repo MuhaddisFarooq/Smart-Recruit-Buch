@@ -51,6 +51,8 @@ export default function EditHrTrainingPage() {
   const [preview, setPreview] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log("Edit page effect. params.id:", params.id, "parsed id:", id);
+    if (!id || isNaN(id)) return;
     (async () => {
       try {
         const r = await fetch(`/api/hr-training/${id}`, { cache: "no-store" });
@@ -212,7 +214,7 @@ export default function EditHrTrainingPage() {
             value={agenda}
             onChange={setAgenda}
             height={400}
-            // config={{ extraPlugins: "editorplaceholder", editorplaceholder: "Start writing your training agenda here..." }}
+          // config={{ extraPlugins: "editorplaceholder", editorplaceholder: "Start writing your training agenda here..." }}
           />
         </div>
 

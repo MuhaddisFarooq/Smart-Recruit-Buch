@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLoadingStore } from "@/store/useLoadingStore";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+
 
 const mapNextAuthError = (code?: string) => {
   switch (code) {
@@ -74,9 +74,7 @@ function LoginForm() {
         <label htmlFor="password" className="text-sm font-medium">Password</label>
         <Input id="password" name="password" type="password" required />
       </div>
-      <div className="flex justify-end">
-        <Link className="hover:text-shadow-gray-800" href="/forgot-password">Forgot password?</Link>
-      </div>
+
       <Button type="submit" className="bg-primary w-full shadow-md">Sign in</Button>
     </form>
   );

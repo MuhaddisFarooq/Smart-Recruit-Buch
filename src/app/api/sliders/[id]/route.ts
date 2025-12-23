@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/options";
 import path from "path";
 import { promises as fs } from "fs";
 import { saveOptimizedImage } from "../../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,14 @@ async function ensureDir(d: string) { await fs.mkdir(d, { recursive: true }); }
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "slider", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -32,6 +41,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "slider", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -112,6 +129,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "slider", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 

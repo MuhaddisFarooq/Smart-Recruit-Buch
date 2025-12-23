@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { hasPerm, type PermissionMap } from "@/lib/perms-client";
-import ExportButton from "@/components/common/ExportButton";
+
 
 type Row = {
   id: number;
@@ -36,16 +36,24 @@ export default function PublicationsViewPage() {
   // Get session and permissions
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
-  const canExport = hasPerm(perms, "publications", "export");
+  const canView = hasPerm(perms, "publications", "view");
+  const canEdit = hasPerm(perms, "publications", "edit");
+  const canDelete = hasPerm(perms, "publications", "delete");
 
-  // Export configuration
-  const exportColumns = [
-    { key: "id", header: "ID", width: 10 },
-    { key: "heading_name", header: "Heading", width: 30 },
-    { key: "picture", header: "Picture", width: 25 },
-    { key: "link", header: "Link", width: 30 },
-    { key: "status", header: "Status", width: 12 },
-  ];
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
+
+
+
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -91,7 +99,7 @@ export default function PublicationsViewPage() {
         error: (e) => (e as Error)?.message || "Could not update status.",
       });
       await loadAt();
-    } catch {}
+    } catch { }
   }
 
   async function onDelete(id: number) {
@@ -119,25 +127,13 @@ export default function PublicationsViewPage() {
       setTotal((t) => Math.max(0, t - 1));
       if (rows.length - 1 <= 0 && page > 1) setPage(page - 1);
       await loadAt();
-    } catch {}
+    } catch { }
   }
 
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Publications</h1>
-        
-        <div className="flex items-center gap-2">
-          {canExport && (
-            <ExportButton
-              data={rows}
-              columns={exportColumns}
-              filename="publications_export"
-              title="Publications Report"
-              disabled={loading}
-            />
-          )}
-        </div>
       </div>
 
       {/* Controls */}
@@ -220,23 +216,30 @@ export default function PublicationsViewPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <button
-                      title="Toggle status"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                      onClick={() => toggleStatus(r.id)}
-                    >●</button>
+                    {canEdit && (
+                      <button
+                        title="Toggle status"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                        onClick={() => toggleStatus(r.id)}
+                      >●</button>
+                    )}
 
-                    <Link
-                      href={`/publications/${r.id}/edit`}
-                      title="Edit"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                    >✎</Link>
+                    {canEdit && (
+                      <Link
+                        href={`/publications/${r.id}/edit`}
+                        title="Edit"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                      >✎</Link>
+                    )}
 
-                    <button
-                      title="Delete"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                      onClick={() => onDelete(r.id)}
-                    >🗑</button>
+                    {canDelete && (
+                      <button
+                        title="Delete"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                        onClick={() => onDelete(r.id)}
+                      >🗑</button>
+                    )}
+                    {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>
@@ -250,13 +253,13 @@ export default function PublicationsViewPage() {
         <div>
           {rows.length > 0
             ? <>Showing <strong>{Math.min((page - 1) * pageSize + 1, total)}</strong> to{" "}
-               <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
+              <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
             : <>Showing 0 entries</>}
         </div>
         <nav className="flex items-center gap-1">
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page <= 1}>Previous</button>
+            onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page <= 1}>Previous</button>
           {Array.from({ length: totalPages }).map((_, i) => {
             const p = i + 1;
             const show = p <= 5 || p === totalPages || Math.abs(p - page) <= 1;
@@ -270,8 +273,8 @@ export default function PublicationsViewPage() {
             );
           })}
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page >= totalPages}>Next</button>
+            onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page >= totalPages}>Next</button>
         </nav>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/options";
 import path from "path";
 import { promises as fs } from "fs";
 import { saveOptimizedImage } from "../../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,10 @@ function normalizeMulti(input: unknown): string {
 /** GET one */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  console.log("[hr-training:GET] id raw:", id);
   try {
+
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -42,6 +46,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "hr_training", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -64,16 +76,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
-      if (fd.has("title"))        title        = String(fd.get("title") || "");
-      if (fd.has("date"))         dateStr      = String(fd.get("date") || "");
-      if (fd.has("time"))         time         = String(fd.get("time") || "");
-      if (fd.has("duration"))     duration     = String(fd.get("duration") || "");
-      if (fd.has("trainer"))      trainer      = normalizeMulti(fd.get("trainer"));
+      if (fd.has("title")) title = String(fd.get("title") || "");
+      if (fd.has("date")) dateStr = String(fd.get("date") || "");
+      if (fd.has("time")) time = String(fd.get("time") || "");
+      if (fd.has("duration")) duration = String(fd.get("duration") || "");
+      if (fd.has("trainer")) trainer = normalizeMulti(fd.get("trainer"));
       if (fd.has("participants")) participants = normalizeMulti(fd.get("participants"));
-      if (fd.has("t_agenda"))     t_agenda     = String(fd.get("t_agenda") ?? ""); // keep HTML
-      if (fd.has("department"))   department   = String(fd.get("department") || "");
-      if (fd.has("t_type"))       t_type       = String(fd.get("t_type") || "");
-      if (fd.has("t_certificate"))t_certificate= String(fd.get("t_certificate") || "");
+      if (fd.has("t_agenda")) t_agenda = String(fd.get("t_agenda") ?? ""); // keep HTML
+      if (fd.has("department")) department = String(fd.get("department") || "");
+      if (fd.has("t_type")) t_type = String(fd.get("t_type") || "");
+      if (fd.has("t_certificate")) t_certificate = String(fd.get("t_certificate") || "");
 
       const file = fd.get("image") as File | null;
       if (file && file.size > 0) {
@@ -88,36 +100,36 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       }
     } else {
       const b: any = await req.json().catch(() => ({}));
-      if ("title" in b)         title        = String(b.title || "");
-      if ("date" in b)          dateStr      = String(b.date || "");
-      if ("time" in b)          time         = String(b.time || "");
-      if ("duration" in b)      duration     = String(b.duration || "");
-      if ("trainer" in b)       trainer      = normalizeMulti(b.trainer);
-      if ("participants" in b)  participants = normalizeMulti(b.participants);
-      if ("t_agenda" in b)      t_agenda     = String(b.t_agenda ?? ""); // keep HTML
-      if ("department" in b)    department   = String(b.department || "");
-      if ("t_type" in b)        t_type       = String(b.t_type || "");
-      if ("t_certificate" in b) t_certificate= String(b.t_certificate || "");
+      if ("title" in b) title = String(b.title || "");
+      if ("date" in b) dateStr = String(b.date || "");
+      if ("time" in b) time = String(b.time || "");
+      if ("duration" in b) duration = String(b.duration || "");
+      if ("trainer" in b) trainer = normalizeMulti(b.trainer);
+      if ("participants" in b) participants = normalizeMulti(b.participants);
+      if ("t_agenda" in b) t_agenda = String(b.t_agenda ?? ""); // keep HTML
+      if ("department" in b) department = String(b.department || "");
+      if ("t_type" in b) t_type = String(b.t_type || "");
+      if ("t_certificate" in b) t_certificate = String(b.t_certificate || "");
       // JSON can't carry image
     }
 
     const sets: string[] = [];
     const args: any[] = [];
-    if (title !== undefined)        { sets.push("title=?");        args.push(title); }
-    if (dateStr !== undefined)      { sets.push("date=?");         args.push(dateStr ? new Date(dateStr) : null); }
-    if (time !== undefined)         { sets.push("time=?");         args.push(time); }
-    if (duration !== undefined)     { sets.push("duration=?");     args.push(duration); }
-    if (trainer !== undefined)      { sets.push("trainer=?");      args.push(trainer); }
+    if (title !== undefined) { sets.push("title=?"); args.push(title); }
+    if (dateStr !== undefined) { sets.push("date=?"); args.push(dateStr ? new Date(dateStr) : null); }
+    if (time !== undefined) { sets.push("time=?"); args.push(time); }
+    if (duration !== undefined) { sets.push("duration=?"); args.push(duration); }
+    if (trainer !== undefined) { sets.push("trainer=?"); args.push(trainer); }
     if (participants !== undefined) { sets.push("participants=?"); args.push(participants); }
-    if (t_agenda !== undefined)     { sets.push("t_agenda=?");     args.push(t_agenda); } // HTML verbatim
-    if (department !== undefined)   { sets.push("department=?");   args.push(department); }
-    if (t_type !== undefined)       { sets.push("t_type=?");       args.push(t_type); }
-    if (t_certificate !== undefined){ sets.push("t_certificate=?");args.push(t_certificate); }
-    if (imageRel !== undefined)     { sets.push("image=?");        args.push(imageRel); }
+    if (t_agenda !== undefined) { sets.push("t_agenda=?"); args.push(t_agenda); } // HTML verbatim
+    if (department !== undefined) { sets.push("department=?"); args.push(department); }
+    if (t_type !== undefined) { sets.push("t_type=?"); args.push(t_type); }
+    if (t_certificate !== undefined) { sets.push("t_certificate=?"); args.push(t_certificate); }
+    if (imageRel !== undefined) { sets.push("image=?"); args.push(imageRel); }
 
     if (!sets.length) return NextResponse.json({ ok: true, message: "nothing to update" });
 
-    sets.push("updatedBy=?");   args.push(actor);
+    sets.push("updatedBy=?"); args.push(actor);
     sets.push("updatedDate=?"); args.push(now);
 
     await query(`UPDATE hr_trainings SET ${sets.join(", ")} WHERE id=?`, [...args, num]);
@@ -132,6 +144,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "hr_training", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 

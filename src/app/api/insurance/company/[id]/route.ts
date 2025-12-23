@@ -4,6 +4,9 @@ import { query } from "@/lib/db";
 import { actorFromSession, saveCompressedJpeg } from "../../_helpers";
 import path from "path";
 import { promises as fs } from "fs";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +17,14 @@ export async function GET(
 ) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "insurance", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) {
       return NextResponse.json({ error: "Bad id" }, { status: 400 });
@@ -43,6 +54,14 @@ export async function PATCH(
 ) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "insurance", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) {
       return NextResponse.json({ error: "Bad id" }, { status: 400 });
@@ -101,7 +120,7 @@ export async function PATCH(
     if (sets.length === 0) {
       return NextResponse.json({ ok: true, message: "nothing to update" });
     }
-    sets.push("updatedBy=?");  args.push(updatedBy);
+    sets.push("updatedBy=?"); args.push(updatedBy);
     sets.push("updatedDate=?"); args.push(now);
 
     await query(
@@ -126,6 +145,14 @@ export async function DELETE(
 ) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "insurance", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) {
       return NextResponse.json({ error: "Bad id" }, { status: 400 });

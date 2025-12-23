@@ -23,7 +23,7 @@ const moduleKeyByTitle: Record<string, string> = {
   "Clinical Study": "clinical_study",
   Publications: "publications",
   "HR Training": "hr_training",
-  "Fertility Treatment": "fertility_treatments",
+  "Fertility Treatment": "fertility_treatment",
   Users: "users",
 };
 
@@ -36,8 +36,8 @@ const moduleKeyByTitle: Record<string, string> = {
  */
 function itemVisibleByTitle(title: string, perms: PermissionMap | undefined, moduleKey: string) {
   const ttl = title.toLowerCase();
-  if (ttl.includes("view"))   return hasPerm(perms, moduleKey, "view");
-  if (ttl.includes("add"))    return hasPerm(perms, moduleKey, "new");
+  if (ttl.includes("view")) return hasPerm(perms, moduleKey, "view");
+  if (ttl.includes("add")) return hasPerm(perms, moduleKey, "new");
   if (ttl.includes("import")) return hasPerm(perms, moduleKey, "new");
   // neutral items → show (or lock down further if you add more rules)
   return true;
@@ -59,7 +59,7 @@ export function useFilteredNav(): NavItem[] {
       if (!moduleKey) return section;
 
       const canView = hasPerm(perms, moduleKey, "view");
-      const canNew  = hasPerm(perms, moduleKey, "new");
+      const canNew = hasPerm(perms, moduleKey, "new");
 
       // If user has neither view nor new, hide the whole module
       if (!canView && !canNew) return null;

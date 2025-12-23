@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { query } from "@/lib/db";
 
 // Keep this in server-only code. Do NOT import in client bundles.
-export type PermAction = "view" | "new" | "edit" | "delete" | "export";
+export type PermAction = "view" | "new" | "edit" | "delete" | "export" | "import";
 export type PermissionMap = {
   [moduleKey: string]: Partial<Record<PermAction, boolean>>;
 };
@@ -29,12 +29,12 @@ async function tableExists(name: string) {
     } catch (describeError) {
       // DESCRIBE failed, try fallback method
     }
-    
+
     // Method 2: Fallback - get all tables and check
     const rows = await query<any>("SHOW TABLES");
     const tableNames = rows.map((row: any) => Object.values(row)[0] as string);
     const exists = tableNames.includes(name);
-    
+
     return exists;
   } catch (error) {
     return false;
@@ -46,7 +46,7 @@ async function loadPermsFromGroupsTable(groupId: number | null | undefined): Pro
   if (!groupId) {
     return null;
   }
-  
+
   const hasGroups = await tableExists("user_groups");
   if (!hasGroups) {
     return null;
@@ -119,8 +119,8 @@ async function loadPermissionMapForUser(u: DBUser): Promise<PermissionMap> {
 
   // (C) Role fallback
   const role = (u.role || "").toLowerCase();
-  if (role === "superadmin" || role === "admin") {
-    const adminPerms = { "*": { view: true, new: true, edit: true, delete: true, export: true } };
+  if (role === "superadmin") {
+    const adminPerms = { "*": { view: true, new: true, edit: true, delete: true, export: true, import: true } };
     return adminPerms;
   }
   return {};

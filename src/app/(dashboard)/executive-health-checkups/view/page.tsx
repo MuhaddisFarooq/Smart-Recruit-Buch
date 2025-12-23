@@ -31,6 +31,8 @@ export default function ExecutiveHealthCheckupsViewPage() {
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
   const canExport = hasPerm(perms, "ehc", "export");
+  const canEdit = hasPerm(perms, "ehc", "edit");
+  const canDelete = hasPerm(perms, "ehc", "delete");
 
   // Export configuration
   const exportColumns = [
@@ -86,7 +88,7 @@ export default function ExecutiveHealthCheckupsViewPage() {
         error: (e) => (e as Error)?.message || "Could not update status.",
       });
       await loadAt();
-    } catch {}
+    } catch { }
   }
 
   async function onDelete(id: number) {
@@ -120,7 +122,7 @@ export default function ExecutiveHealthCheckupsViewPage() {
       const nextPage = remain <= 0 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
       await loadAt(nextPage, pageSize, search);
-    } catch {}
+    } catch { }
   }
 
   const imgUrl = (s?: string | null) => (!s ? undefined : s.startsWith("/") ? s : `/uploads/${s}`);
@@ -129,7 +131,7 @@ export default function ExecutiveHealthCheckupsViewPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Executive Health Checkups</h1>
-        
+
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportButton
@@ -217,23 +219,36 @@ export default function ExecutiveHealthCheckupsViewPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <button
-                      title="Toggle status"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                      onClick={() => toggleStatus(r.id)}
-                    >●</button>
+                    {canEdit && (
+                      <button
+                        title="Toggle status"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                        onClick={() => toggleStatus(r.id)}
+                      >
+                        ●
+                      </button>
+                    )}
 
-                    <Link
-                      href={`/executive-health-checkups/${r.id}/edit`}
-                      title="Edit"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                    >✎</Link>
+                    {canEdit && (
+                      <Link
+                        href={`/executive-health-checkups/${r.id}/edit`}
+                        title="Edit"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                      >
+                        ✎
+                      </Link>
+                    )}
 
-                    <button
-                      title="Delete"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                      onClick={() => onDelete(r.id)}
-                    >🗑</button>
+                    {canDelete && (
+                      <button
+                        title="Delete"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                        onClick={() => onDelete(r.id)}
+                      >
+                        🗑
+                      </button>
+                    )}
+                    {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>

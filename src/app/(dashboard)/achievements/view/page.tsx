@@ -28,6 +28,21 @@ export default function AchievementsViewPage() {
 
   // Get session for authentication
   const { data: session } = useSession();
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canView = hasPerm(perms, "achievements", "view");
+  const canDelete = hasPerm(perms, "achievements", "delete");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
 
   async function load() {
     setLoading(true);
@@ -94,13 +109,15 @@ export default function AchievementsViewPage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={toUrl(r.image)} alt={`Achievement ${r.id}`} className="h-56 w-full object-cover" />
               <div className="absolute right-2 top-2 flex gap-2 opacity-0 transition group-hover:opacity-100">
-                <button
-                  title="Delete"
-                  onClick={() => del(r.id)}
-                  className="rounded-full bg-rose-600 px-3 py-1 text-sm font-medium text-white hover:bg-rose-700"
-                >
-                  🗑
-                </button>
+                {canDelete && (
+                  <button
+                    title="Delete"
+                    onClick={() => del(r.id)}
+                    className="rounded-full bg-rose-600 px-3 py-1 text-sm font-medium text-white hover:bg-rose-700"
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
             </div>
           ))}

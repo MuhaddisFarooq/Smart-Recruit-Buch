@@ -33,7 +33,22 @@ export default function FertilityViewPage() {
 
   // Get session and permissions
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canView = hasPerm(perms, "fertility_treatment", "view");
+  const canEdit = hasPerm(perms, "fertility_treatment", "edit");
+  const canDelete = hasPerm(perms, "fertility_treatment", "delete");
   const canExport = hasPerm(perms, "fertility_treatment", "export");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Export configuration
   const exportColumns = [
@@ -94,7 +109,7 @@ export default function FertilityViewPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Fertility Treatments</h1>
-        
+
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportButton
@@ -113,8 +128,8 @@ export default function FertilityViewPage() {
         <div className="flex items-center gap-2">
           <span className="text-sm">Show</span>
           <select className="rounded-md border bg-white px-2 py-1 text-sm"
-                  value={pageSize}
-                  onChange={(e) => { const ps = Number(e.target.value); setPageSize(ps); setPage(1); loadAt(1, ps, search); }}>
+            value={pageSize}
+            onChange={(e) => { const ps = Number(e.target.value); setPageSize(ps); setPage(1); loadAt(1, ps, search); }}>
             {PAGE_SIZES.map((n) => (<option key={n} value={n}>{n}</option>))}
           </select>
           <span className="text-sm">entries</span>
@@ -123,9 +138,9 @@ export default function FertilityViewPage() {
         <div className="flex items-center gap-2">
           <span className="text-sm">Search:</span>
           <input className="rounded-md border px-2 py-1 text-sm"
-                 value={search}
-                 onChange={(e) => setSearch(e.target.value)}
-                 placeholder="title or details…" />
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="title or details…" />
         </div>
       </div>
 
@@ -159,12 +174,17 @@ export default function FertilityViewPage() {
                 <td className="px-4 py-3">{r.details || "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Link href={`/fertility-treatments/${r.id}/edit`}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                          title="Edit">✎</Link>
-                    <button onClick={() => onDelete(r.id)}
-                            title="Delete"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700">🗑</button>
+                    {canEdit && (
+                      <Link href={`/fertility-treatments/${r.id}/edit`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                        title="Edit">✎</Link>
+                    )}
+                    {canDelete && (
+                      <button onClick={() => onDelete(r.id)}
+                        title="Delete"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700">🗑</button>
+                    )}
+                    {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>
@@ -178,13 +198,13 @@ export default function FertilityViewPage() {
         <div>
           {rows.length > 0
             ? <>Showing <strong>{Math.min((page - 1) * pageSize + 1, total)}</strong> to{" "}
-               <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
+              <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
             : <>Showing 0 entries</>}
         </div>
         <nav className="flex items-center gap-1">
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page <= 1}>Previous</button>
+            onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page <= 1}>Previous</button>
           {Array.from({ length: totalPages }).map((_, i) => {
             const p = i + 1;
             const show = p <= 5 || p === totalPages || Math.abs(p - page) <= 1;
@@ -198,8 +218,8 @@ export default function FertilityViewPage() {
             );
           })}
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page >= totalPages}>Next</button>
+            onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page >= totalPages}>Next</button>
         </nav>
       </div>
     </div>

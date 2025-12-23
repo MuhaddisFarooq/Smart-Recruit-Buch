@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,13 @@ async function actorFromSession() {
 
 export async function GET() {
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "management_team", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const rows = await query<{
       id: number;
       name: string;
@@ -48,6 +56,14 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "management_team", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("multipart/form-data")) {
       return NextResponse.json({ error: "Use multipart/form-data" }, { status: 400 });

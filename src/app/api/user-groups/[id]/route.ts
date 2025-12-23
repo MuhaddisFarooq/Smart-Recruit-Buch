@@ -3,6 +3,7 @@ import { pool, query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
 import { MODULES, ModuleKey } from "@/lib/modules";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +27,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (!Number.isFinite(gid)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
   try {
+    // 🔒 Require "view" (users module)
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "users", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const [group] = await query<any>(`SELECT * FROM user_groups WHERE id=? LIMIT 1`, [gid]);
     if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -54,9 +63,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const gid = Number(id);
   if (!Number.isFinite(gid)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
-  const auth = await requireSuperAdmin();
-  if ("error" in auth) return auth.error;
-  const actor = auth.actor;
+  // 🔒 Require "edit" (users module)
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userPerms = (session.user as any)?.perms;
+  if (!hasPerm(userPerms, "users", "edit")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const actor = session.user?.email || session.user?.name || "system";
   const now = new Date();
 
   try {
@@ -67,9 +82,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // Convert permissions to JSON string
     const permissionsJson = perms ? JSON.stringify(perms) : null;
 
-    console.log("📝 Updating group permissions:", { 
-      groupId: gid, 
-      name, 
+    console.log("📝 Updating group permissions:", {
+      groupId: gid,
+      name,
       permissions: perms,
       permissionsJson: permissionsJson ? (permissionsJson.length > 200 ? permissionsJson.substring(0, 200) + '...' : permissionsJson) : null
     });
@@ -90,7 +105,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       await conn.commit();
       return NextResponse.json({ ok: true });
     } catch (e) {
-      try { await (await conn).rollback(); } catch {}
+      try { await (await conn).rollback(); } catch { }
       throw e;
     } finally {
       conn.release();
@@ -107,8 +122,13 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const gid = Number(id);
   if (!Number.isFinite(gid)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
-  const auth = await requireSuperAdmin();
-  if ("error" in auth) return auth.error;
+  // 🔒 Require "delete" (users module)
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const perms = (session.user as any)?.perms;
+  if (!hasPerm(perms, "users", "delete")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const conn = await pool.getConnection();
@@ -117,12 +137,12 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
       // Just delete the user group - permissions are stored as JSON in the same row
       await conn.execute(`DELETE FROM user_groups WHERE id=?`, [gid]);
       await conn.commit();
-      
+
       console.log("🗑️ Deleted user group:", { groupId: gid });
-      
+
       return NextResponse.json({ ok: true });
     } catch (e) {
-      try { await (await conn).rollback(); } catch {}
+      try { await (await conn).rollback(); } catch { }
       throw e;
     } finally {
       conn.release();

@@ -413,41 +413,7 @@ function AddConsultantInner() {
         }
       );
 
-      // Reset form on success
-      setForm({
-        consultantId: "",
-        name: "",
-        consultancyFee: "",
-        degreeCompletionDate: "",
-        specialties: "",
-        education: "",
-        expertise: "",
-        experience: "",
-        schedulePhysical: {
-          monday: { ...defaultDay },
-          tuesday: { ...defaultDay },
-          wednesday: { ...defaultDay },
-          thursday: { ...defaultDay },
-          friday: { ...defaultDay },
-          saturday: { ...defaultDay },
-          sunday: { ...defaultDay },
-        },
-        employment: "Permanent",
-        isSurgeon: false,
-        consultantTypes: {
-          Physical: true,
-          Telemedicine: false,
-        },
-        photoFile: null,
-        backgroundImageFile: null,
-      });
-      setPreview(null);
-      setBackgroundPreview(null);
-      setSelectedMain("");
-      setSelectedSub("");
-      setSubCats([]);
-      setUploadedFilename("");
-      setUploadedBackgroundFilename("");
+      window.location.reload();
     } catch {
       /* toast already shown */
     } finally {
@@ -587,12 +553,13 @@ function AddConsultantInner() {
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Experience</label>
-              <textarea
-                rows={4}
+              <input
+                type="number"
+                min="0"
                 className="w-full rounded-md border px-3 py-2"
                 value={form.experience || ""}
                 onChange={onText("experience")}
-                placeholder="Years of experience and details"
+                placeholder="Years of experience"
               />
             </div>
           </div>

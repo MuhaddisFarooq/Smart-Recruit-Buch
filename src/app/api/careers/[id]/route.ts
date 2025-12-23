@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,14 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "careers", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id: idStr } = await ctx.params;
     const id = Number(idStr);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
@@ -35,6 +44,14 @@ export async function PATCH(
 ) {
   try {
     const { id: idStr } = await ctx.params;
+
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "careers", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const id = Number(idStr);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -62,12 +79,12 @@ export async function PATCH(
     const values: any[] = [];
     const set = (col: string, val: any) => { fields.push(`${col} = ?`); values.push(val); };
 
-    if (b.job_title          !== undefined) set("job_title",          String(b.job_title).trim());
+    if (b.job_title !== undefined) set("job_title", String(b.job_title).trim());
     if (b.type_of_employment !== undefined) set("type_of_employment", String(b.type_of_employment).trim());
-    if (b.department         !== undefined) set("department",         String(b.department).trim());
-    if (b.location           !== undefined) set("location",           String(b.location).trim());
-    if (b.job_link           !== undefined) set("job_link",           String(b.job_link ?? ""));
-    if (b.status             !== undefined) set("status",             String(b.status || "active"));
+    if (b.department !== undefined) set("department", String(b.department).trim());
+    if (b.location !== undefined) set("location", String(b.location).trim());
+    if (b.job_link !== undefined) set("job_link", String(b.job_link ?? ""));
+    if (b.status !== undefined) set("status", String(b.status || "active"));
 
     set("updatedBy", actorEmail);
     fields.push("updatedDate = NOW()");
@@ -88,6 +105,14 @@ export async function DELETE(
 ) {
   try {
     const { id: idStr } = await ctx.params;
+
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "careers", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const id = Number(idStr);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
     await query("DELETE FROM careers WHERE id = ?", [id]);

@@ -7,6 +7,7 @@ import path from "path";
 import { promises as fs } from "fs";
 import bcrypt from "bcryptjs";
 import { saveOptimizedImage } from "../../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs"; // ensure Node runtime
@@ -37,6 +38,14 @@ async function ensureHasGroupIdColumn(): Promise<boolean> {
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "users", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -56,29 +65,38 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
-    // must be logged in
-    const auth = await requireActor();
-    if ("error" in auth) return auth.error;
-    const actor = auth.actor;
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "users", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const actor = session.user?.email || session.user?.name || "system";
     const now = new Date();
 
     const ct = (req.headers.get("content-type") || "").toLowerCase();
 
     // quick toggle path
+    // Read JSON once if applicable
+    let jsonBody: any = null;
     if (ct.includes("application/json")) {
-      const b: any = await req.json().catch(() => ({}));
-      if (b?._toggleStatus) {
-        const [{ status = "inactive" } = {}] = await query<{ status: string }>(
-          "SELECT status FROM users WHERE id=? LIMIT 1",
-          [num]
-        );
-        const newStatus = status === "active" ? "inactive" : "active";
-        await execute(
-          "UPDATE users SET status=?, updatedBy=?, updatedDate=? WHERE id=?",
-          [newStatus, actor, now, num]
-        );
-        return NextResponse.json({ ok: true, status: newStatus });
-      }
+      jsonBody = await req.json().catch(() => ({}));
+    }
+
+    // quick toggle path
+    if (jsonBody?._toggleStatus) {
+      const [{ status = "inactive" } = {}] = await query<{ status: string }>(
+        "SELECT status FROM users WHERE id=? LIMIT 1",
+        [num]
+      );
+      const newStatus = status === "active" ? "inactive" : "active";
+      await execute(
+        "UPDATE users SET status=?, updatedBy=?, updatedDate=? WHERE id=?",
+        [newStatus, actor, now, num]
+      );
+      return NextResponse.json({ ok: true, status: newStatus });
     }
 
     let employee_id: string | undefined;
@@ -94,12 +112,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
       if (fd.has("employee_id")) employee_id = String(fd.get("employee_id") || "");
-      if (fd.has("name"))        name        = String(fd.get("name") || "");
-      if (fd.has("department"))  department  = String(fd.get("department") || "");
+      if (fd.has("name")) name = String(fd.get("name") || "");
+      if (fd.has("department")) department = String(fd.get("department") || "");
       if (fd.has("designation")) designation = String(fd.get("designation") || "");
-      if (fd.has("status"))      status      = (String(fd.get("status") || "active").toLowerCase() === "inactive" ? "inactive" : "active");
-      if (fd.has("email"))       email       = String(fd.get("email") || "").trim().toLowerCase();
-      if (fd.has("password"))    password    = String(fd.get("password") || "");
+      if (fd.has("status")) status = (String(fd.get("status") || "active").toLowerCase() === "inactive" ? "inactive" : "active");
+      if (fd.has("email")) email = String(fd.get("email") || "").trim().toLowerCase();
+      if (fd.has("password")) password = String(fd.get("password") || "");
 
       if (fd.has("group_id")) {
         const raw = String(fd.get("group_id") ?? "").trim();
@@ -121,14 +139,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         }
       }
     } else {
-      const b: any = await req.json().catch(() => ({}));
+      const b: any = jsonBody || {};
       if ("employee_id" in b) employee_id = String(b.employee_id || "");
-      if ("name" in b)        name        = String(b.name || "");
-      if ("department" in b)  department  = String(b.department || "");
+      if ("name" in b) name = String(b.name || "");
+      if ("department" in b) department = String(b.department || "");
       if ("designation" in b) designation = String(b.designation || "");
-      if ("status" in b)      status      = (String(b.status || "active").toLowerCase() === "inactive" ? "inactive" : "active");
-      if ("email" in b)       email       = String(b.email || "").trim().toLowerCase();
-      if ("password" in b)    password    = String(b.password || "");
+      if ("status" in b) status = (String(b.status || "active").toLowerCase() === "inactive" ? "inactive" : "active");
+      if ("email" in b) email = String(b.email || "").trim().toLowerCase();
+      if ("password" in b) password = String(b.password || "");
 
       if ("group_id" in b) {
         const raw = String(b.group_id ?? "").trim();
@@ -155,16 +173,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const args: any[] = [actor, now];
 
     if (employee_id !== undefined) { sets.push("employee_id=?"); args.push(employee_id); }
-    if (name !== undefined)        { sets.push("name=?");        args.push(name); }
-    if (department !== undefined)  { sets.push("department=?");  args.push(department); }
+    if (name !== undefined) { sets.push("name=?"); args.push(name); }
+    if (department !== undefined) { sets.push("department=?"); args.push(department); }
     if (designation !== undefined) { sets.push("designation=?"); args.push(designation); }
-    if (status !== undefined)      { sets.push("status=?");      args.push(status); }
-    if (email !== undefined)       { sets.push("email=?");       args.push(email); }
+    if (status !== undefined) { sets.push("status=?"); args.push(status); }
+    if (email !== undefined) { sets.push("email=?"); args.push(email); }
     if (password !== undefined && password) {
       const hashed = await bcrypt.hash(password, 10);
       sets.push("password=?"); args.push(hashed);
     }
-    if (pictureRel !== undefined)  { sets.push("picture=?");     args.push(pictureRel); }
+    if (pictureRel !== undefined) { sets.push("picture=?"); args.push(pictureRel); }
 
     if (await ensureHasGroupIdColumn()) {
       if (group_id !== undefined) { sets.push("group_id=?"); args.push(group_id); }
@@ -176,7 +194,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (group_id !== undefined && !(await ensureHasGroupIdColumn())) {
       // Remove existing group memberships for this user
       await execute("DELETE FROM user_group_members WHERE user_id=?", [num]);
-      
+
       // Add new group membership if group_id is provided
       if (group_id !== null) {
         await execute(
@@ -201,8 +219,14 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
     // require session for destructive action
-    const auth = await requireActor();
-    if ("error" in auth) return auth.error;
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "users", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // already authenticated above
 
     const old = await query<{ picture: string | null }>("SELECT picture FROM users WHERE id=? LIMIT 1", [num]);
     const oldRel = old[0]?.picture;

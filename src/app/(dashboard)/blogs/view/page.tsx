@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { notify } from "@/components/ui/notify";
 import { hasPerm, type PermissionMap } from "@/lib/perms-client";
-import ExportButton from "@/components/common/ExportButton";
+
 
 type Row = {
   id: number;
@@ -50,25 +50,26 @@ export default function BlogsViewPage() {
   // Get session and permissions
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
-  
-  const canView   = hasPerm(perms, "blogs", "view");
-  const canNew    = hasPerm(perms, "blogs", "new");
-  const canEdit   = hasPerm(perms, "blogs", "edit");
-  const canDelete = hasPerm(perms, "blogs", "delete");
-  const canExport = hasPerm(perms, "blogs", "export");
 
-  // Export configuration
-  const exportColumns = [
-    { key: "id", header: "ID", width: 10 },
-    { key: "title", header: "Title", width: 30 },
-    { key: "category", header: "Category", width: 20 },
-    { key: "featured_post", header: "Featured Post", width: 15 },
-    { key: "file_path", header: "File Path", width: 25 },
-    { key: "addedBy", header: "Added By", width: 20 },
-    { key: "addedDate", header: "Added Date", width: 15 },
-    { key: "updatedBy", header: "Updated By", width: 20 },
-    { key: "updatedDate", header: "Updated Date", width: 15 },
-  ];
+  const canView = hasPerm(perms, "blogs", "view");
+
+  const canEdit = hasPerm(perms, "blogs", "edit");
+  const canDelete = hasPerm(perms, "blogs", "delete");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
+
+
+
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / pageSize)),
@@ -155,25 +156,6 @@ export default function BlogsViewPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Blogs</h1>
-        <div className="flex items-center gap-2">
-          {canExport && (
-            <ExportButton
-              data={rows}
-              columns={exportColumns}
-              filename="blogs_export"
-              title="Blogs Report"
-              disabled={loading}
-            />
-          )}
-          {canNew && (
-            <Link
-              href="/blogs/add"
-              className="rounded-md bg-[#c8e967] px-3 py-2 text-sm font-medium text-black hover:bg-[#b9db58]"
-            >
-              + Add Blog Post
-            </Link>
-          )}
-        </div>
       </div>
 
       {/* Controls */}

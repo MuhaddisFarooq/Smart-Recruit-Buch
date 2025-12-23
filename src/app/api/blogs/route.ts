@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/options";
 import path from "path";
 import { promises as fs } from "fs";
 import crypto from "crypto";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,7 +41,38 @@ export async function GET(req: NextRequest) {
     if (search) { where.push("title LIKE ?"); args.push(`%${search}%`); }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    const totalRows = await query<{ cnt: number }>(`SELECT COUNT(*) AS cnt FROM blogs ${whereSql}`, args);
+    // ✅ PUBLIC ACCESS FOR WEBSITE (no session)
+    const session = await getServerSession(authOptions).catch(() => null);
+    if (!session) {
+      const totalRows = await query<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM blogs ${whereSql}`,
+        args
+      );
+      const total = totalRows[0]?.cnt ?? 0;
+
+      // Public response: return safe fields needed by website
+      const rows = await query<any>(
+        `SELECT id, title, category, featured_post, file_path, addedDate
+         FROM blogs
+         ${whereSql}
+         ORDER BY id DESC
+         LIMIT ? OFFSET ?`,
+        [...args, pageSize, (page - 1) * pageSize]
+      );
+
+      return NextResponse.json({ data: rows, total, page, pageSize });
+    }
+
+    // 🔒 ADMIN ACCESS (unchanged)
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "blogs", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const totalRows = await query<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM blogs ${whereSql}`,
+      args
+    );
     const total = totalRows[0]?.cnt ?? 0;
 
     const rows = await query<any>(
@@ -65,6 +97,14 @@ export async function POST(req: NextRequest) {
     const who = await actor();
     const now = new Date();
 
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "blogs", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     let title = "";
     let category = "";
@@ -74,18 +114,18 @@ export async function POST(req: NextRequest) {
 
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
-      title            = String(fd.get("title") || "");
-      category         = String(fd.get("category") || "");
+      title = String(fd.get("title") || "");
+      category = String(fd.get("category") || "");
       description_html = String(fd.get("description_html") || "");
-      featured_post    = String(fd.get("featured_post") || "") === "1" ? 1 : 0;
+      featured_post = String(fd.get("featured_post") || "") === "1" ? 1 : 0;
       const file = fd.get("file") as File | null;
       if (file && file.size > 0) fileRel = await saveUploadedFile(file);
     } else {
       const b: any = await req.json().catch(() => ({}));
-      title            = String(b.title || "");
-      category         = String(b.category || "");
+      title = String(b.title || "");
+      category = String(b.category || "");
       description_html = String(b.description_html || "");
-      featured_post    = Number(b.featured_post) ? 1 : 0;
+      featured_post = Number(b.featured_post) ? 1 : 0;
       // (no file in JSON mode)
     }
 

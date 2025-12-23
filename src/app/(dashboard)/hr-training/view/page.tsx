@@ -41,7 +41,22 @@ export default function HrTrainingViewPage() {
 
   // Get session and permissions
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canView = hasPerm(perms, "hr_training", "view");
+  const canEdit = hasPerm(perms, "hr_training", "edit");
+  const canDelete = hasPerm(perms, "hr_training", "delete");
   const canExport = hasPerm(perms, "hr_training", "export");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Export configuration
   const exportColumns = [
@@ -108,7 +123,7 @@ export default function HrTrainingViewPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View HR Trainings</h1>
-        
+
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportButton
@@ -181,17 +196,22 @@ export default function HrTrainingViewPage() {
                 <td className="px-4 py-3">{r.department || "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Link
-                      href={`/hr-training/${r.id}/edit`}
-                      title="Edit"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                    >✎</Link>
+                    {canEdit && (
+                      <Link
+                        href={`/hr-training/${r.id}/edit`}
+                        title="Edit"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                      >✎</Link>
+                    )}
 
-                    <button
-                      title="Delete"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                      onClick={() => onDelete(r.id)}
-                    >🗑</button>
+                    {canDelete && (
+                      <button
+                        title="Delete"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                        onClick={() => onDelete(r.id)}
+                      >🗑</button>
+                    )}
+                    {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>
@@ -205,13 +225,13 @@ export default function HrTrainingViewPage() {
         <div>
           {rows.length > 0
             ? <>Showing <strong>{Math.min((page - 1) * pageSize + 1, total)}</strong> to{" "}
-               <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
+              <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
             : <>Showing 0 entries</>}
         </div>
         <nav className="flex items-center gap-1">
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const p = Math.max(1, page - 1); setPage(p); loadAt(p, pageSize, search); }}
-                  disabled={page <= 1}>Previous</button>
+            onClick={() => { const p = Math.max(1, page - 1); setPage(p); loadAt(p, pageSize, search); }}
+            disabled={page <= 1}>Previous</button>
           {Array.from({ length: totalPages }).map((_, i) => {
             const p = i + 1;
             const show = p <= 5 || p === totalPages || Math.abs(p - page) <= 1;
@@ -225,8 +245,8 @@ export default function HrTrainingViewPage() {
             );
           })}
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const p = Math.min(totalPages, page + 1); setPage(p); loadAt(p, pageSize, search); }}
-                  disabled={page >= totalPages}>Next</button>
+            onClick={() => { const p = Math.min(totalPages, page + 1); setPage(p); loadAt(p, pageSize, search); }}
+            disabled={page >= totalPages}>Next</button>
         </nav>
       </div>
     </div>

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import { useSession } from "next-auth/react";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
 
 type Row = {
   id: number;
@@ -22,7 +24,25 @@ export default function SliderViewPage() {
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+
   const confirm = useConfirm();
+  const { data: session } = useSession();
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canView = hasPerm(perms, "slider", "view");
+  const canEdit = hasPerm(perms, "slider", "edit");
+  const canDelete = hasPerm(perms, "slider", "delete");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const url = (s: string) => (s.startsWith("/") ? s : `/uploads/${s}`);
@@ -164,23 +184,30 @@ export default function SliderViewPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <button
-                      title="Toggle status"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                      onClick={() => toggleStatus(r.id)}
-                    >●</button>
+                    {canEdit && (
+                      <button
+                        title="Toggle status"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                        onClick={() => toggleStatus(r.id)}
+                      >●</button>
+                    )}
 
-                    <Link
-                      href={`/slider/${r.id}/edit`}
-                      title="Edit"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                    >✎</Link>
+                    {canEdit && (
+                      <Link
+                        href={`/slider/${r.id}/edit`}
+                        title="Edit"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                      >✎</Link>
+                    )}
 
-                    <button
-                      title="Delete"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                      onClick={() => onDelete(r.id)}
-                    >🗑</button>
+                    {canDelete && (
+                      <button
+                        title="Delete"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                        onClick={() => onDelete(r.id)}
+                      >🗑</button>
+                    )}
+                    {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>
@@ -194,13 +221,13 @@ export default function SliderViewPage() {
         <div>
           {rows.length > 0
             ? <>Showing <strong>{Math.min((page - 1) * pageSize + 1, total)}</strong> to{" "}
-               <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
+              <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
             : <>Showing 0 entries</>}
         </div>
         <nav className="flex items-center gap-1">
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page <= 1}>Previous</button>
+            onClick={() => { const next = Math.max(1, page - 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page <= 1}>Previous</button>
           {Array.from({ length: totalPages }).map((_, i) => {
             const p = i + 1;
             const show = p <= 5 || p === totalPages || Math.abs(p - page) <= 1;
@@ -214,8 +241,8 @@ export default function SliderViewPage() {
             );
           })}
           <button className="rounded-md border bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
-                  disabled={page >= totalPages}>Next</button>
+            onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); loadAt(next, pageSize, search); }}
+            disabled={page >= totalPages}>Next</button>
         </nav>
       </div>
     </div>

@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { actorFromSession, saveCompressedJpeg } from "../_helpers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +25,25 @@ async function ensureTable() {
   `);
 }
 
+/**
+ * ✅ Public GET for website
+ * 🔒 If session exists (admin portal), enforce perms
+ */
 export async function GET(req: NextRequest) {
   try {
     await ensureTable();
+
+    const session = await getServerSession(authOptions).catch(() => null);
+
+    // If logged-in (admin portal), enforce permission
+    if (session) {
+      const perms = (session.user as any)?.perms;
+      if (!hasPerm(perms, "insurance", "view")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+    // If NOT logged-in: allow public read for website
+
     const { searchParams } = new URL(req.url);
     const page = Math.max(1, Number(searchParams.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") || 10)));
@@ -45,8 +64,15 @@ export async function GET(req: NextRequest) {
     const total = totalRows[0]?.cnt ?? 0;
 
     const rows = await query<{
-      id: number; name: string; profile: string; address: string; logo: string | null;
-      addedBy?: string; addedDate?: any; updatedBy?: string | null; updatedDate?: any | null;
+      id: number;
+      name: string;
+      profile: string;
+      address: string;
+      logo: string | null;
+      addedBy?: string;
+      addedDate?: any;
+      updatedBy?: string | null;
+      updatedDate?: any | null;
     }>(
       `
       SELECT id, name, profile, address, logo, addedBy, addedDate, updatedBy, updatedDate
@@ -65,9 +91,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/** POST stays admin-only */
 export async function POST(req: NextRequest) {
   try {
     await ensureTable();
+
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "insurance", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("multipart/form-data")) {
       return NextResponse.json({ error: "Use multipart/form-data" }, { status: 400 });

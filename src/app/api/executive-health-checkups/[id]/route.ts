@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/options";
 import path from "path";
 import { promises as fs } from "fs";
 import { saveOptimizedImage } from "../../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+
+  // 🔒 Require "edit"
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const perms = (session.user as any)?.perms;
+  if (!hasPerm(perms, "ehc", "edit")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const num = Number(id);
@@ -139,6 +148,47 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("[ehc:PATCH] DB error:", err);
+    return NextResponse.json({ error: err?.message || "DB error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+
+  // 🔒 Require "delete"
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const perms = (session.user as any)?.perms;
+  if (!hasPerm(perms, "ehc", "delete")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const num = Number(id);
+    if (!Number.isFinite(num)) {
+      return NextResponse.json({ error: "Bad id" }, { status: 400 });
+    }
+
+    // 1) Find existing to delete image
+    const rows = await query<{ image: string | null }>(
+      "SELECT image FROM executive_health_checkups WHERE id=? LIMIT 1",
+      [num]
+    );
+    if (!rows.length) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const imgRel = rows[0].image;
+    if (imgRel) {
+      const absPath = path.join(process.cwd(), "public", "uploads", imgRel);
+      await fs.unlink(absPath).catch(() => void 0);
+    }
+
+    // 2) Delete from DB
+    await query("DELETE FROM executive_health_checkups WHERE id=?", [num]);
+
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error("[ehc:DELETE] DB error:", err);
     return NextResponse.json({ error: err?.message || "DB error" }, { status: 500 });
   }
 }

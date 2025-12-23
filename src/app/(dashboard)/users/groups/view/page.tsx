@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { hasPerm, type PermissionMap } from "@/lib/perms-client";
 
 type GroupRow = {
   id: number;
@@ -14,6 +16,12 @@ type GroupRow = {
 };
 
 export default function ViewUserGroupsPage() {
+  const { data: session } = useSession();
+  const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canNew = hasPerm(perms, "users", "new");
+  const canEdit = hasPerm(perms, "users", "edit");
+  const canDelete = hasPerm(perms, "users", "delete");
+
   const [rows, setRows] = useState<GroupRow[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -52,9 +60,11 @@ export default function ViewUserGroupsPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">User Groups</h1>
-        <Link href="/users/groups/add" className="rounded-md bg-[#c8e967] px-4 py-2 text-sm font-medium text-black hover:bg-[#b9db58]">
-          + Add Group
-        </Link>
+        {canNew && (
+          <Link href="/users/groups/add" className="rounded-md bg-[#c8e967] px-4 py-2 text-sm font-medium text-black hover:bg-[#b9db58]">
+            + Add Group
+          </Link>
+        )}
       </div>
 
       <div className="mb-3 flex items-center gap-3">
@@ -102,8 +112,13 @@ export default function ViewUserGroupsPage() {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-3">
-                      <Link href={`/users/groups/${g.id}/edit`} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700" title="Edit">✎</Link>
-                      <button onClick={() => removeGroup(g.id)} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700" title="Delete">🗑</button>
+                      {canEdit && (
+                        <Link href={`/users/groups/${g.id}/edit`} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700" title="Edit">✎</Link>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => removeGroup(g.id)} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700" title="Delete">🗑</button>
+                      )}
+                      {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                     </div>
                   </td>
                 </tr>

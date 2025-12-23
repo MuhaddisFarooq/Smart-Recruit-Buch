@@ -16,14 +16,19 @@ export default function RequirePerm({
 }) {
   const { data, status } = useSession();
   const router = useRouter();
+  const role = (data?.user as any)?.role;
   const perms = (data?.user as any)?.perms as PermissionMap | undefined;
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/");
-    if (status === "authenticated" && !hasPerm(perms, moduleKey, action)) router.replace("/403");
-  }, [status, perms, router, moduleKey, action]);
+    if (status === "authenticated") {
+      if (role?.toLowerCase() === "superadmin") return;
+      if (!hasPerm(perms, moduleKey, action)) router.replace("/403");
+    }
+  }, [status, perms, router, moduleKey, action, role]);
 
   if (status !== "authenticated") return null;
+  if (role?.toLowerCase() === "superadmin") return <>{children}</>;
   if (!hasPerm(perms, moduleKey, action)) return null;
   return <>{children}</>;
 }

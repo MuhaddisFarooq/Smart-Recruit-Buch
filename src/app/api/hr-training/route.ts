@@ -1,10 +1,10 @@
+// src/app/api/hr-training/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
-import path from "path";
-import { promises as fs } from "fs";
 import { saveOptimizedImage } from "../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -13,13 +13,11 @@ async function actorFromSession() {
   return s?.user?.email || s?.user?.name || "system";
 }
 
-async function ensureDir(d: string) { await fs.mkdir(d, { recursive: true }); }
-
 // Normalize comma/newline lists -> newline-separated, trimmed unique items
 function normalizeMulti(input: unknown): string {
   const items = String(input ?? "")
     .split(/[\n,]+/g)
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
   return items.join("\n");
 }
@@ -50,10 +48,25 @@ async function ensureTable() {
   `);
 }
 
-/** GET /api/hr-training?page=&pageSize=&search= */
+/** GET /api/hr-training?page=&pageSize=&search=
+ *  ✅ Public GET (for website)
+ *  🔒 If session exists, enforce perms
+ */
 export async function GET(req: NextRequest) {
   try {
     await ensureTable();
+
+    const session = await getServerSession(authOptions).catch(() => null);
+
+    // If logged-in (admin portal), enforce permission
+    if (session) {
+      const perms = (session.user as any)?.perms;
+      if (!hasPerm(perms, "hr_training", "view")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+    // If NOT logged-in: allow public read for website
+
     const sp = new URL(req.url).searchParams;
     const page = Math.max(1, Number(sp.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(sp.get("pageSize") || 10)));
@@ -68,8 +81,10 @@ export async function GET(req: NextRequest) {
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     const [{ cnt = 0 } = {}] = await query<{ cnt: number }>(
-      `SELECT COUNT(*) as cnt FROM hr_trainings ${whereSql}`, args
+      `SELECT COUNT(*) as cnt FROM hr_trainings ${whereSql}`,
+      args
     );
+
     const rows = await query<any>(
       `SELECT id, title, date, time, duration, trainer, participants, t_agenda, image, department, t_type, t_certificate
        FROM hr_trainings
@@ -92,6 +107,15 @@ export async function POST(req: NextRequest) {
     await ensureTable();
     const actor = await actorFromSession();
 
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "hr_training", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("multipart/form-data")) {
       return NextResponse.json({ error: "Use multipart/form-data" }, { status: 400 });
@@ -99,16 +123,16 @@ export async function POST(req: NextRequest) {
 
     const fd = await req.formData();
 
-    const title        = String(fd.get("title") || "").trim();
-    const dateStr      = String(fd.get("date") || "").trim();  // yyyy-mm-dd
-    const time         = String(fd.get("time") || "").trim();
-    const duration     = String(fd.get("duration") || "").trim();
-    const trainer      = normalizeMulti(fd.get("trainer"));
+    const title = String(fd.get("title") || "").trim();
+    const dateStr = String(fd.get("date") || "").trim(); // yyyy-mm-dd
+    const time = String(fd.get("time") || "").trim();
+    const duration = String(fd.get("duration") || "").trim();
+    const trainer = normalizeMulti(fd.get("trainer"));
     const participants = normalizeMulti(fd.get("participants"));
-    const t_agenda     = String(fd.get("t_agenda") ?? "");      // HTML intact
-    const department   = String(fd.get("department") || "").trim();
-    const t_type       = String(fd.get("t_type") || "").trim();
-    const t_certificate= String(fd.get("t_certificate") || "").trim();
+    const t_agenda = String(fd.get("t_agenda") ?? ""); // HTML intact
+    const department = String(fd.get("department") || "").trim();
+    const t_type = String(fd.get("t_type") || "").trim();
+    const t_certificate = String(fd.get("t_certificate") || "").trim();
 
     if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
 

@@ -21,7 +21,8 @@ async function readBody(req: NextRequest) {
 }
 
 /** GET one sub-category (with description) */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id: idStr } = await ctx.params;
   try {
     // 🔒 Require "view"
     const session = await getServerSession(authOptions);
@@ -31,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const id = Number(params.id);
+    const id = Number(idStr);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
     const rows = await query<{
@@ -61,7 +62,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 /** PATCH/PUT: update sub-category (name/main/description) */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id: idStr } = await ctx.params;
   try {
     // 🔒 Require "edit"
     const session = await getServerSession(authOptions);
@@ -71,7 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const id = Number(params.id);
+    const id = Number(idStr);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
     const b: any = await readBody(req);
@@ -130,7 +132,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export const PUT = PATCH;
 
 /** DELETE */
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id: idStr } = await ctx.params;
   try {
     // 🔒 Require "delete"
     const session = await getServerSession(authOptions);
@@ -140,7 +143,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const id = Number(params.id);
+    const id = Number(idStr);
     if (!Number.isFinite(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
     await query("DELETE FROM consultant_category WHERE id = ? LIMIT 1", [id]);

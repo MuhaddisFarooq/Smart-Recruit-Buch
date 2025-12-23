@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/options";
 import path from "path";
 import { promises as fs } from "fs";
 import { saveOptimizedImage } from "../../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,14 @@ async function actorFromSession() {
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "publications", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
     const rows = await query<any>("SELECT * FROM publications WHERE id=? LIMIT 1", [num]);
@@ -32,6 +41,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "publications", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
@@ -50,17 +67,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     let heading_name: string | undefined;
-    let description : string | undefined;
-    let link        : string | undefined;
-    let details     : string | undefined;
-    let pictureRel  : string | undefined;
+    let description: string | undefined;
+    let link: string | undefined;
+    let details: string | undefined;
+    let pictureRel: string | undefined;
 
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
       if (fd.has("heading_name")) heading_name = String(fd.get("heading_name") || "");
-      if (fd.has("description"))  description  = String(fd.get("description")  || "");
-      if (fd.has("link"))         link         = String(fd.get("link")         || "");
-      if (fd.has("details"))      details      = String(fd.get("details")      || "");
+      if (fd.has("description")) description = String(fd.get("description") || "");
+      if (fd.has("link")) link = String(fd.get("link") || "");
+      if (fd.has("details")) details = String(fd.get("details") || "");
       const file = fd.get("picture") as File | null;
       if (file && file.size > 0) {
         pictureRel = await saveOptimizedImage(file, "publications", null, 98);
@@ -74,18 +91,18 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     } else {
       const b: any = maybeJson ?? (await req.json().catch(() => ({})));
       if (b.heading_name !== undefined) heading_name = String(b.heading_name || "");
-      if (b.description  !== undefined) description  = String(b.description  || "");
-      if (b.link         !== undefined) link         = String(b.link         || "");
-      if (b.details      !== undefined) details      = String(b.details      || "");
+      if (b.description !== undefined) description = String(b.description || "");
+      if (b.link !== undefined) link = String(b.link || "");
+      if (b.details !== undefined) details = String(b.details || "");
     }
 
     const sets: string[] = [];
     const args: any[] = [];
     if (heading_name !== undefined) { sets.push("heading_name=?"); args.push(heading_name); }
-    if (description  !== undefined) { sets.push("description=?");  args.push(description);  }
-    if (link         !== undefined) { sets.push("link=?");         args.push(link);         }
-    if (details      !== undefined) { sets.push("details=?");      args.push(details);      }
-    if (pictureRel   !== undefined) { sets.push("picture=?");      args.push(pictureRel);   }
+    if (description !== undefined) { sets.push("description=?"); args.push(description); }
+    if (link !== undefined) { sets.push("link=?"); args.push(link); }
+    if (details !== undefined) { sets.push("details=?"); args.push(details); }
+    if (pictureRel !== undefined) { sets.push("picture=?"); args.push(pictureRel); }
     if (!sets.length) return NextResponse.json({ ok: true, message: "nothing to update" });
 
     sets.push("updatedBy=?"); args.push(actor);
@@ -103,6 +120,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "publications", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const num = Number(id);
     if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 

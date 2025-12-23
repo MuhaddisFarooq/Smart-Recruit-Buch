@@ -1,10 +1,10 @@
+// src/app/api/publications/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
-import path from "path";
-import { promises as fs } from "fs";
 import { saveOptimizedImage } from "../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,6 @@ async function actorFromSession() {
   const s = await getServerSession(authOptions).catch(() => null);
   return s?.user?.email || s?.user?.name || "system";
 }
-async function ensureDir(d: string) { await fs.mkdir(d, { recursive: true }); }
 
 async function ensureTable() {
   await query(`
@@ -34,10 +33,25 @@ async function ensureTable() {
   `);
 }
 
-/** LIST */
+/** LIST
+ * ✅ Public GET for website
+ * 🔒 If session exists, enforce perms
+ */
 export async function GET(req: NextRequest) {
   try {
     await ensureTable();
+
+    const session = await getServerSession(authOptions).catch(() => null);
+
+    // If logged-in (admin portal), enforce permission
+    if (session) {
+      const perms = (session.user as any)?.perms;
+      if (!hasPerm(perms, "publications", "view")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+    // If NOT logged-in: allow public read for website
+
     const sp = new URL(req.url).searchParams;
     const page = Math.max(1, Number(sp.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(sp.get("pageSize") || 10)));
@@ -51,7 +65,11 @@ export async function GET(req: NextRequest) {
     }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    const [{ cnt }] = await query<{ cnt: number }>(`SELECT COUNT(*) AS cnt FROM publications ${whereSql}`, args);
+    const [{ cnt = 0 } = {}] = await query<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM publications ${whereSql}`,
+      args
+    );
+
     const rows = await query<any>(
       `SELECT id, heading_name, picture, link, status
        FROM publications
@@ -61,18 +79,27 @@ export async function GET(req: NextRequest) {
       [...args, pageSize, (page - 1) * pageSize]
     );
 
-    return NextResponse.json({ data: rows, total: cnt ?? 0, page, pageSize });
+    return NextResponse.json({ data: rows, total: cnt, page, pageSize });
   } catch (e: any) {
     console.error("[publications:GET]", e);
     return NextResponse.json({ error: e?.message || "DB error" }, { status: 500 });
   }
 }
 
-/** CREATE (status auto 'active') */
+/** CREATE (status auto 'active') — admin only */
 export async function POST(req: NextRequest) {
   try {
     await ensureTable();
     const actor = await actorFromSession();
+
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "publications", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("multipart/form-data")) {
@@ -80,11 +107,15 @@ export async function POST(req: NextRequest) {
     }
 
     const fd = await req.formData();
-    const heading_name = String(fd.get("heading_name") || "");
-    const description  = String(fd.get("description")  || "");
-    const link         = String(fd.get("link")         || "");
-    const details      = String(fd.get("details")      || "");
+    const heading_name = String(fd.get("heading_name") || "").trim();
+    const description = String(fd.get("description") || "").trim();
+    const link = String(fd.get("link") || "").trim();
+    const details = String(fd.get("details") || "").trim();
     const file = fd.get("picture") as File | null;
+
+    if (!heading_name) {
+      return NextResponse.json({ error: "heading_name is required." }, { status: 400 });
+    }
 
     let pictureRel: string | null = null;
     if (file && file.size > 0) {

@@ -1,23 +1,18 @@
+// src/app/api/achievements/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
 import { saveOptimizedImage } from "../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
-function sanitizeName(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
-}
-async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-}
 async function actorFromSession() {
   const s = await getServerSession(authOptions).catch(() => null);
   return s?.user?.email || s?.user?.name || "system";
 }
+
 async function ensureTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS achievements (
@@ -32,15 +27,31 @@ async function ensureTable() {
   `);
 }
 
-/** GET all (latest first) */
+/** GET all (latest first)
+ *  ✅ Public GET (for website)
+ *  🔒 If session exists, enforce perms
+ */
 export async function GET() {
   try {
     await ensureTable();
-    const rows = await query<{ id: number; image: string; addedBy: string; addedDate: any }>(
-      `SELECT id, image, addedBy, addedDate
-       FROM achievements
-       ORDER BY id DESC`
-    );
+
+    const session = await getServerSession(authOptions).catch(() => null);
+
+    // If logged-in (admin portal), enforce permission
+    if (session) {
+      const perms = (session.user as any)?.perms;
+      if (!hasPerm(perms, "achievements", "view")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+    // If NOT logged-in: allow public read for website
+
+    const rows = await query<{ id: number; image: string; addedBy: string; addedDate: any }>(`
+      SELECT id, image, addedBy, addedDate
+      FROM achievements
+      ORDER BY id DESC
+    `);
+
     return NextResponse.json({ data: rows });
   } catch (err: any) {
     console.error("[achievements:GET] DB error:", err);
@@ -52,6 +63,15 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     await ensureTable();
+
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "achievements", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("multipart/form-data")) {

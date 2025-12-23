@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 import { notify } from "@/components/ui/notify";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { hasPerm, type PermissionMap } from "@/lib/perms-client";
-import ExportButton from "@/components/common/ExportButton";
 
 type Row = {
   id: number;
@@ -36,16 +35,24 @@ export default function ClinicalStudyViewPage() {
   // Get session and permissions
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
-  const canExport = hasPerm(perms, "clinical_study", "export");
+  const canView = hasPerm(perms, "clinical_study", "view");
+  const canEdit = hasPerm(perms, "clinical_study", "edit");
+  const canDelete = hasPerm(perms, "clinical_study", "delete");
 
-  // Export configuration
-  const exportColumns = [
-    { key: "id", header: "ID", width: 10 },
-    { key: "heading_name", header: "Heading", width: 30 },
-    { key: "picture", header: "Picture", width: 25 },
-    { key: "link", header: "Link", width: 30 },
-    { key: "status", header: "Status", width: 12 },
-  ];
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
+
+
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -126,18 +133,8 @@ export default function ClinicalStudyViewPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Clinical Studies</h1>
-        
-        <div className="flex items-center gap-2">
-          {canExport && (
-            <ExportButton
-              data={rows}
-              columns={exportColumns}
-              filename="clinical_studies_export"
-              title="Clinical Studies Report"
-              disabled={loading}
-            />
-          )}
-        </div>
+
+
       </div>
 
       {/* Controls */}
@@ -221,25 +218,32 @@ export default function ClinicalStudyViewPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {/* Toggle */}
-                    <button
-                      title="Toggle status"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                      onClick={() => toggleStatus(r.id)}
-                    >●</button>
+                    {canEdit && (
+                      <button
+                        title="Toggle status"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                        onClick={() => toggleStatus(r.id)}
+                      >●</button>
+                    )}
 
                     {/* Edit */}
-                    <Link
-                      href={`/clinical-study/${r.id}/edit`}
-                      title="Edit"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                    >✎</Link>
+                    {canEdit && (
+                      <Link
+                        href={`/clinical-study/${r.id}/edit`}
+                        title="Edit"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                      >✎</Link>
+                    )}
 
                     {/* Delete */}
-                    <button
-                      title="Delete"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                      onClick={() => onDelete(r.id)}
-                    >🗑</button>
+                    {canDelete && (
+                      <button
+                        title="Delete"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                        onClick={() => onDelete(r.id)}
+                      >🗑</button>
+                    )}
+                    {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>
@@ -253,7 +257,7 @@ export default function ClinicalStudyViewPage() {
         <div>
           {rows.length > 0
             ? <>Showing <strong>{Math.min((page - 1) * pageSize + 1, total)}</strong> to{" "}
-               <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
+              <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> entries</>
             : <>Showing 0 entries</>}
         </div>
         <nav className="flex items-center gap-1">

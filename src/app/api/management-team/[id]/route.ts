@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,14 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "management_team", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id: idStr } = await ctx.params;        // ← await params
     const id = Number(idStr);
     if (!Number.isFinite(id)) {
@@ -63,6 +72,14 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔒 Require "edit"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "management_team", "edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id: idStr } = await ctx.params;        // ← await params
     const id = Number(idStr);
     if (!Number.isFinite(id)) {
@@ -143,7 +160,7 @@ export async function PATCH(
     }
     if (newPhotoRel !== undefined) { sets.push("photo=?"); args.push(newPhotoRel); }
 
-    sets.push("updated_by=?");  args.push(updatedBy);
+    sets.push("updated_by=?"); args.push(updatedBy);
     sets.push("updated_date=NOW()");
 
     if (!sets.length) return NextResponse.json({ ok: true, message: "nothing to update" });
@@ -163,6 +180,14 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔒 Require "delete"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "management_team", "delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id: idStr } = await ctx.params;        // ← await params
     const id = Number(idStr);
     if (!Number.isFinite(id)) {

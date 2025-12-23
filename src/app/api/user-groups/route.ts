@@ -3,6 +3,7 @@ import { pool, query } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
 import { MODULES, ModuleKey } from "@/lib/modules";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,6 +23,14 @@ async function requireSuperAdmin() {
 /** GET - list groups; use JSON permissions column */
 export async function GET(req: NextRequest) {
   try {
+    // 🔒 Require "view" (users module)
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "users", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get("q") || "").trim();
     const where = q ? "WHERE name LIKE ?" : "";
@@ -54,12 +63,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST - create a group (superadmin only) */
+/** POST - create a group */
 export async function POST(req: NextRequest) {
-  const auth = await requireSuperAdmin();
-  if ("error" in auth) return auth.error;
+  // 🔒 Require "new" (users module)
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const perms = (session.user as any)?.perms;
+  if (!hasPerm(perms, "users", "new")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  const actor = auth.actor;
+  const actor = session.user?.email || session.user?.name || "system";
   const now = new Date();
 
   try {
@@ -76,7 +90,7 @@ export async function POST(req: NextRequest) {
 
     for (const [k, v] of Object.entries(perms) as [ModuleKey, PermSet][]) {
       if (!validKeys.has(k)) continue;
-      
+
       // Only include modules that have at least one permission enabled
       const modulePerms: Record<string, boolean> = {};
       if (v?.view) modulePerms.view = true;

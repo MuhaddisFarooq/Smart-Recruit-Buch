@@ -1,0 +1,9 @@
+Connecting to mysql://muhaddis@127.0.0.1:3309/hospital_portal
+Checking users table...
+Error querying database: {
+  "message": "Access denied for user 'muhaddis'@'localhost' (using password: YES)",
+  "code": "ER_ACCESS_DENIED_ERROR",
+  "errno": 1045,
+  "sqlState": "28000",
+  "sqlMessage": "Access denied for user 'muhaddis'@'localhost' (using password: YES)"
+}

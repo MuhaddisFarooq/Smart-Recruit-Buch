@@ -31,7 +31,22 @@ export default function TestimonialsViewPage() {
   // Get session and permissions
   const { data: session } = useSession();
   const perms = (session?.user as any)?.perms as PermissionMap | undefined;
+  const canView = hasPerm(perms, "testimonials", "view");
+  const canEdit = hasPerm(perms, "testimonials", "edit");
+  const canDelete = hasPerm(perms, "testimonials", "delete");
   const canExport = hasPerm(perms, "testimonials", "export");
+
+  // If no view permission, show access denied message
+  if (session && !canView) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
+          <p className="text-gray-600">You don't have permission to view this module.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Export configuration
   const exportColumns = [
@@ -121,7 +136,7 @@ export default function TestimonialsViewPage() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">View Testimonials</h1>
-        
+
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportButton
@@ -215,29 +230,36 @@ export default function TestimonialsViewPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <button
-                        title="Toggle status"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
-                        onClick={() => toggleStatus(r.id)}
-                      >
-                        ●
-                      </button>
+                      {canEdit && (
+                        <button
+                          title="Toggle status"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                          onClick={() => toggleStatus(r.id)}
+                        >
+                          ●
+                        </button>
+                      )}
 
-                      <Link
-                        href={`/testimonials/${r.id}/edit`}
-                        title="Edit"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                      >
-                        ✎
-                      </Link>
+                      {canEdit && (
+                        <Link
+                          href={`/testimonials/${r.id}/edit`}
+                          title="Edit"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          ✎
+                        </Link>
+                      )}
 
-                      <button
-                        title="Delete"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
-                        onClick={() => onDelete(r.id)}
-                      >
-                        🗑
-                      </button>
+                      {canDelete && (
+                        <button
+                          title="Delete"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                          onClick={() => onDelete(r.id)}
+                        >
+                          🗑
+                        </button>
+                      )}
+                      {!canEdit && !canDelete && <span className="text-gray-400">—</span>}
                     </div>
                   </td>
                 </tr>

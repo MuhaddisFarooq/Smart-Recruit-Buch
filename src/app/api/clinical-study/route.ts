@@ -1,10 +1,10 @@
+// src/app/api/clinical-study/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import path from "path";
-import { promises as fs } from "fs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
 import { saveOptimizedImage } from "../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +33,25 @@ async function ensureTable() {
   `);
 }
 
-/** LIST */
+/** LIST
+ * ✅ Public GET for website
+ * 🔒 If session exists, enforce perms
+ */
 export async function GET(req: NextRequest) {
   try {
     await ensureTable();
+
+    const session = await getServerSession(authOptions).catch(() => null);
+
+    // If logged-in (admin portal), enforce permission
+    if (session) {
+      const perms = (session.user as any)?.perms;
+      if (!hasPerm(perms, "clinical_study", "view")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+    // If NOT logged-in: allow public read for website
+
     const sp = new URL(req.url).searchParams;
     const page = Math.max(1, Number(sp.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(sp.get("pageSize") || 10)));
@@ -51,16 +66,17 @@ export async function GET(req: NextRequest) {
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     const totalRows = await query<{ cnt: number }>(
-      `SELECT COUNT(*) as cnt FROM clinical_study ${whereSql}`, args
+      `SELECT COUNT(*) as cnt FROM clinical_study ${whereSql}`,
+      args
     );
     const total = totalRows[0]?.cnt ?? 0;
 
     const rows = await query<any>(
       `SELECT id, heading_name, picture, link, status
-         FROM clinical_study
-         ${whereSql}
-         ORDER BY id DESC
-         LIMIT ? OFFSET ?`,
+       FROM clinical_study
+       ${whereSql}
+       ORDER BY id DESC
+       LIMIT ? OFFSET ?`,
       [...args, pageSize, (page - 1) * pageSize]
     );
 
@@ -71,11 +87,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** CREATE — status always 'active' */
+/** CREATE — status always 'active' (admin only) */
 export async function POST(req: NextRequest) {
   try {
     await ensureTable();
     const actor = await actorFromSession();
+
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "clinical_study", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     if (!(req.headers.get("content-type") || "").toLowerCase().includes("multipart/form-data")) {
       return NextResponse.json({ error: "Use multipart/form-data" }, { status: 400 });
@@ -83,19 +108,21 @@ export async function POST(req: NextRequest) {
 
     const fd = await req.formData();
     const heading_name = String(fd.get("heading_name") || "").trim();
-    const description  = String(fd.get("description")  || "").trim();
-    const link         = String(fd.get("link")         || "").trim();
-    const details      = String(fd.get("details")      || "").trim();
+    const description = String(fd.get("description") || "").trim();
+    const link = String(fd.get("link") || "").trim();
+    const details = String(fd.get("details") || "").trim();
     const file = fd.get("image") as File | null;
 
-    if (!heading_name) return NextResponse.json({ error: "heading_name is required." }, { status: 400 });
+    if (!heading_name) {
+      return NextResponse.json({ error: "heading_name is required." }, { status: 400 });
+    }
 
     let picture: string | null = null;
     if (file && file.size > 0) picture = await saveOptimizedImage(file, "clinical", null, 98);
 
-    // Force status to 'active' on creation
     await query(
-      `INSERT INTO clinical_study (heading_name, description, picture, link, details, status, addedBy, addedDate, updatedBy, updatedDate)
+      `INSERT INTO clinical_study
+       (heading_name, description, picture, link, details, status, addedBy, addedDate, updatedBy, updatedDate)
        VALUES (?, ?, ?, ?, ?, 'active', ?, NOW(), NULL, NULL)`,
       [heading_name, description, picture, link, details, actor]
     );

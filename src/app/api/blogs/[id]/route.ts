@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth/options";
 import path from "path";
 import { promises as fs } from "fs";
 import crypto from "crypto";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs"; // mysql2 requires Node runtime
@@ -70,10 +71,10 @@ export async function PATCH(
 
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
-      if (fd.has("title"))            title            = String(fd.get("title") || "");
-      if (fd.has("category"))         category         = String(fd.get("category") || "");
+      if (fd.has("title")) title = String(fd.get("title") || "");
+      if (fd.has("category")) category = String(fd.get("category") || "");
       if (fd.has("description_html")) description_html = String(fd.get("description_html") || "");
-      if (fd.has("featured_post"))    featured_post    = String(fd.get("featured_post") || "") === "1" ? 1 : 0;
+      if (fd.has("featured_post")) featured_post = String(fd.get("featured_post") || "") === "1" ? 1 : 0;
 
       const file = fd.get("file") as File | null;
       if (file && file.size > 0) {
@@ -85,20 +86,20 @@ export async function PATCH(
       }
     } else {
       const b: any = await req.json().catch(() => ({}));
-      if ("title" in b)            title            = String(b.title || "");
-      if ("category" in b)         category         = String(b.category || "");
+      if ("title" in b) title = String(b.title || "");
+      if ("category" in b) category = String(b.category || "");
       if ("description_html" in b) description_html = String(b.description_html || "");
-      if ("featured_post" in b)    featured_post    = Number(b.featured_post) ? 1 : 0;
+      if ("featured_post" in b) featured_post = Number(b.featured_post) ? 1 : 0;
     }
 
     const sets: string[] = ["updatedBy=?", "updatedDate=?"];
     const args: any[] = [who, now];
 
-    if (title !== undefined)            { sets.push("title=?");            args.push(title); }
-    if (category !== undefined)         { sets.push("category=?");         args.push(category || null); }
+    if (title !== undefined) { sets.push("title=?"); args.push(title); }
+    if (category !== undefined) { sets.push("category=?"); args.push(category || null); }
     if (description_html !== undefined) { sets.push("description_html=?"); args.push(description_html); }
-    if (featured_post !== undefined)    { sets.push("featured_post=?");    args.push(featured_post); }
-    if (newFileRel !== undefined)       { sets.push("file_path=?");        args.push(newFileRel); }
+    if (featured_post !== undefined) { sets.push("featured_post=?"); args.push(featured_post); }
+    if (newFileRel !== undefined) { sets.push("file_path=?"); args.push(newFileRel); }
 
     if (sets.length === 2) return NextResponse.json({ ok: true, message: "nothing to update" });
 

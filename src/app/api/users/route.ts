@@ -7,6 +7,7 @@ import path from "path";
 import { promises as fs } from "fs";
 import bcrypt from "bcryptjs";
 import { saveOptimizedImage } from "../_helpers/image-processing";
+import { hasPerm } from "@/lib/perms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,6 +30,14 @@ async function ensureHasGroupIdColumn(): Promise<boolean> {
 /** GET (list with simple paging & search) */
 export async function GET(req: NextRequest) {
   try {
+    // 🔒 Require "view"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "users", "view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get("q") || "").trim();
     const limit = Math.min(Number(searchParams.get("limit") || 25), 100);
@@ -62,6 +71,14 @@ export async function GET(req: NextRequest) {
 /** POST (create user) - accepts JSON or multipart/form-data */
 export async function POST(req: NextRequest) {
   try {
+    // 🔒 Require "new"
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const perms = (session.user as any)?.perms;
+    if (!hasPerm(perms, "users", "new")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const actor = await actorFromSession();
     const now = new Date();
     const ct = (req.headers.get("content-type") || "").toLowerCase();
@@ -81,13 +98,13 @@ export async function POST(req: NextRequest) {
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
       employee_id = String(fd.get("employee_id") || "");
-      name        = String(fd.get("name") || "");
-      department  = String(fd.get("department") || "");
+      name = String(fd.get("name") || "");
+      department = String(fd.get("department") || "");
       designation = String(fd.get("designation") || "");
-      email       = String(fd.get("email") || "").trim().toLowerCase();
-      password    = String(fd.get("password") || "");
-      status      = (String(fd.get("status") || "active").toLowerCase() === "inactive" ? "inactive" : "active");
-      role        = String(fd.get("role") || "user");
+      email = String(fd.get("email") || "").trim().toLowerCase();
+      password = String(fd.get("password") || "");
+      status = (String(fd.get("status") || "active").toLowerCase() === "inactive" ? "inactive" : "active");
+      role = String(fd.get("role") || "user");
 
       const gid = fd.get("group_id");
       if (gid !== null && gid !== undefined && String(gid).trim() !== "") {
@@ -100,13 +117,13 @@ export async function POST(req: NextRequest) {
     } else {
       const b: any = await req.json().catch(() => ({}));
       employee_id = String(b.employee_id || "");
-      name        = String(b.name || "");
-      department  = String(b.department || "");
+      name = String(b.name || "");
+      department = String(b.department || "");
       designation = String(b.designation || "");
-      email       = String(b.email || "").trim().toLowerCase();
-      password    = String(b.password || "");
-      status      = (String(b.status || "active").toLowerCase() === "inactive" ? "inactive" : "active");
-      role        = String(b.role || "user");
+      email = String(b.email || "").trim().toLowerCase();
+      password = String(b.password || "");
+      status = (String(b.status || "active").toLowerCase() === "inactive" ? "inactive" : "active");
+      role = String(b.role || "user");
 
       if (b.group_id !== undefined && b.group_id !== null && String(b.group_id).trim() !== "") {
         const n = Number(b.group_id);
@@ -116,8 +133,8 @@ export async function POST(req: NextRequest) {
 
     // validation
     if (!employee_id || !name) return NextResponse.json({ error: "employee_id and name are required" }, { status: 400 });
-    if (!email)                return NextResponse.json({ error: "email is required" }, { status: 400 });
-    if (!password)             return NextResponse.json({ error: "password is required" }, { status: 400 });
+    if (!email) return NextResponse.json({ error: "email is required" }, { status: 400 });
+    if (!password) return NextResponse.json({ error: "password is required" }, { status: 400 });
 
     // validate role and check permissions
     const validRoles = ["superadmin", "admin", "user"];
@@ -126,9 +143,9 @@ export async function POST(req: NextRequest) {
     }
 
     // get current user's role to validate creation permissions
-    const session = await getServerSession(authOptions);
+    // session already fetched above
     const currentUserRole = (session?.user as any)?.role || "user";
-    
+
     // role hierarchy validation
     const canCreate = (currentRole: string, targetRole: string): boolean => {
       if (currentRole === "superadmin") return true; // can create any role
@@ -138,8 +155,8 @@ export async function POST(req: NextRequest) {
     };
 
     if (!canCreate(currentUserRole, role)) {
-      return NextResponse.json({ 
-        error: `Insufficient permissions. ${currentUserRole} cannot create ${role} users.` 
+      return NextResponse.json({
+        error: `Insufficient permissions. ${currentUserRole} cannot create ${role} users.`
       }, { status: 403 });
     }
 

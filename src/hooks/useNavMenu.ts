@@ -206,10 +206,10 @@ export const navMain: NavItem[] = [
     icon: UsersIcon,
     isActive: true,
     items: [
-      { title: "Add Users",        url: "/users/add",         isActive: true },
-      { title: "Add User Group",   url: "/users/groups/add",  isActive: true },
+      { title: "Add Users", url: "/users/add", isActive: true },
+      { title: "Add User Group", url: "/users/groups/add", isActive: true },
       { title: "View User Groups", url: "/users/groups/view", isActive: true },
-      { title: "View",             url: "/users/view",        isActive: true },
+      { title: "View", url: "/users/view", isActive: true },
     ],
   },
 ];
@@ -229,7 +229,7 @@ const moduleKeyByTitle: Record<string, string> = {
   "Clinical Study": "clinical_study",
   Publications: "publications",
   "HR Training": "hr_training",
-  "Fertility Treatment": "fertility_treatments",
+  "Fertility Treatment": "fertility_treatment",
   Blogs: "blogs",
   Pathology: "pathology", // <-- NEW permission module
   Users: "users",
@@ -238,7 +238,7 @@ const moduleKeyByTitle: Record<string, string> = {
 export const useNavMenu = () => {
   const { data } = useSession();
   const perms = (data?.user as any)?.perms as PermissionMap | undefined;
-  const userRole: string = (data?.user as any)?.role || "user";
+  // const userRole: string = (data?.user as any)?.role || "user";
 
   return useMemo<NavItem[]>(() => {
     if (!perms) return [];
@@ -261,9 +261,9 @@ export const useNavMenu = () => {
         const items = (section.items ?? []).filter((it) => {
           const ttl = (it.title || "").toLowerCase();
 
-          if (ttl.includes("user group") || it.url?.includes("/users/groups/")) {
-            return userRole === "superadmin";
-          }
+          // if (ttl.includes("user group") || it.url?.includes("/users/groups/")) {
+          //   return userRole === "superadmin";
+          // }
           if (ttl.startsWith("view")) return hasPerm(perms, key, "view");
           if (ttl.startsWith("add") || ttl.includes("import")) return hasPerm(perms, key, "new");
           return true;
@@ -273,5 +273,5 @@ export const useNavMenu = () => {
         return { ...section, items };
       })
       .filter((x): x is NavItem => !!x);
-  }, [perms, userRole]);
+  }, [perms]);
 };
