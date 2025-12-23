@@ -159,7 +159,6 @@ export async function POST(req: NextRequest) {
         consultant_id, cat_name, name, fee, dcd,
         specialties, education, aoe, experience, schedule,
         profile_pic, background_image, employment_status, doctor_type, consultant_type,
-        profile_pic, background_image, employment_status, doctor_type, consultant_type,
         status, is_featured, addedBy, addedDate
       )
       VALUES
@@ -190,8 +189,6 @@ export async function POST(req: NextRequest) {
       String(b.doctor_type ?? ""),
       consultantType,
 
-      consultantType,
-      'active',
       b.is_featured ? 1 : 0,
       addedBy,
     ]);
