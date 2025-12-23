@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
     const total = totalRows[0]?.cnt ?? 0;
 
     const rows = await query<any>(
-      `SELECT id, heading_name, picture, link, status
+      `SELECT id, heading_name, description, picture, link, status
        FROM clinical_study
        ${whereSql}
        ORDER BY id DESC
