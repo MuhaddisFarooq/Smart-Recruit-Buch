@@ -21,6 +21,7 @@ async function ensureTable() {
       details TEXT COLLATE utf8mb4_unicode_ci,
       image VARCHAR(255) COLLATE utf8mb4_unicode_ci,
       description_html MEDIUMTEXT COLLATE utf8mb4_unicode_ci,
+      status VARCHAR(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
       addedBy VARCHAR(100) COLLATE utf8mb4_unicode_ci NOT NULL,
       addedDate DATETIME NOT NULL,
       updatedBy VARCHAR(100) COLLATE utf8mb4_unicode_ci NULL,
@@ -41,6 +42,9 @@ export async function GET(req: NextRequest) {
 
     const session = await getServerSession(authOptions).catch(() => null);
 
+    const where: string[] = [];
+    const args: any[] = [];
+
     // If logged-in, enforce permission (admin portal behavior stays strict)
     if (session) {
       const perms = (session.user as any)?.perms;
@@ -48,15 +52,16 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
-    // If NOT logged-in: allow public read (website)
+    // If NOT logged-in: allow public read (website) and filter by active
+    if (!session) {
+      where.push("status = 'active'");
+    }
 
     const sp = new URL(req.url).searchParams;
     const page = Math.max(1, Number(sp.get("page") || 1));
     const pageSize = Math.min(100, Math.max(1, Number(sp.get("pageSize") || 10)));
     const search = (sp.get("search") || "").trim();
 
-    const where: string[] = [];
-    const args: any[] = [];
     if (search) {
       where.push("(title LIKE ? OR details LIKE ?)");
       args.push(`%${search}%`, `%${search}%`);
@@ -70,7 +75,7 @@ export async function GET(req: NextRequest) {
     const total = totalRows[0]?.cnt ?? 0;
 
     const rows = await query<any>(
-      `SELECT id, title, details, description_html, image, addedDate
+      `SELECT id, title, details, description_html, image, addedDate, status
          FROM fertility_treatments
          ${whereSql}
          ORDER BY id DESC
@@ -118,8 +123,8 @@ export async function POST(req: NextRequest) {
 
     await query(
       `INSERT INTO fertility_treatments
-        (title, details, image, description_html, addedBy, addedDate, updatedBy, updatedDate)
-       VALUES (?, ?, ?, ?, ?, NOW(), NULL, NULL)`,
+        (title, details, image, description_html, status, addedBy, addedDate, updatedBy, updatedDate)
+       VALUES (?, ?, ?, ?, 'active', ?, NOW(), NULL, NULL)`,
       [title, details || null, imageRel, description_html || null, actor]
     );
 

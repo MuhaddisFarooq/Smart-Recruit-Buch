@@ -15,6 +15,7 @@ type Row = {
   details: string | null;
   image: string | null;
   addedDate: string;
+  status: "active" | "inactive";
 };
 type ApiListResponse = { data: Row[]; total: number; page: number; pageSize: number };
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -56,6 +57,7 @@ export default function FertilityViewPage() {
     { key: "title", header: "Title", width: 30 },
     { key: "details", header: "Details", width: 40 },
     { key: "image", header: "Image", width: 25 },
+    { key: "status", header: "Status", width: 12 },
     { key: "addedDate", header: "Added Date", width: 15 },
   ];
 
@@ -83,6 +85,36 @@ export default function FertilityViewPage() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  async function toggleStatus(id: number) {
+    // Optimistic update
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/fertility-treatments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toggleStatus: true }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(j?.error || `HTTP ${res.status}`);
+      }
+      notify.success("Status updated.");
+    } catch (e: any) {
+      // Revert
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r
+        )
+      );
+      notify.error(e?.message || "Could not update status.");
+    }
+  }
 
   async function onDelete(id: number) {
     const ok = await confirm({
@@ -153,14 +185,15 @@ export default function FertilityViewPage() {
               <th className="px-4 py-3 text-left font-medium">Image</th>
               <th className="px-4 py-3 text-left font-medium">Title</th>
               <th className="px-4 py-3 text-left font-medium">Details</th>
+              <th className="px-4 py-3 text-left font-medium">Status</th>
               <th className="px-4 py-3 text-left font-medium">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-500">Loading…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-500">Loading…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-500">No treatments found.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-500">No treatments found.</td></tr>
             ) : rows.map((r, i) => (
               <tr key={r.id} className={i % 2 ? "bg-white" : "bg-gray-50/50"}>
                 <td className="px-4 py-3">{r.id}</td>
@@ -173,7 +206,28 @@ export default function FertilityViewPage() {
                 <td className="px-4 py-3">{r.title}</td>
                 <td className="px-4 py-3">{r.details || "—"}</td>
                 <td className="px-4 py-3">
+                  <span
+                    className={
+                      r.status === "active"
+                        ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                        : "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"
+                    }
+                  >
+                    {r.status === "active" ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
+                    {canEdit && (
+                      <button
+                        title="Toggle status"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow-200 text-yellow-800 hover:bg-yellow-300"
+                        onClick={() => toggleStatus(r.id)}
+                      >
+                        ●
+                      </button>
+                    )}
+
                     {canEdit && (
                       <Link href={`/fertility-treatments/${r.id}/edit`}
                         className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"

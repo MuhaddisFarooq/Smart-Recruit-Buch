@@ -95,12 +95,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     let details: string | undefined;
     let description_html: string | undefined;
     let imageRel: string | undefined;
+    let status: string | undefined;
 
     if (ct.includes("multipart/form-data")) {
       const fd = await req.formData();
       if (fd.has("title")) title = String(fd.get("title") || "");
       if (fd.has("details")) details = String(fd.get("details") || "");
       if (fd.has("description_html")) description_html = String(fd.get("description_html") || "");
+      if (fd.has("status")) status = String(fd.get("status") || "");
 
       const file = fd.get("image") as File | null;
       if (file && file.size > 0) {
@@ -125,6 +127,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if (b.title !== undefined) title = String(b.title || "");
       if (b.details !== undefined) details = String(b.details || "");
       if (b.description_html !== undefined) description_html = String(b.description_html || "");
+      if (b.status !== undefined) status = String(b.status);
+
+      // Simple toggle logic helper
+      if (b.toggleStatus) {
+        const old = await query<{ status: string }>(
+          "SELECT status FROM fertility_treatments WHERE id=? LIMIT 1",
+          [num]
+        );
+        const current = old[0]?.status || "active";
+        status = current === "active" ? "inactive" : "active";
+      }
     }
 
     const sets: string[] = [];
@@ -141,6 +154,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (description_html !== undefined) {
       sets.push("description_html=?");
       args.push(description_html || null);
+    }
+    if (status !== undefined) {
+      sets.push("status=?");
+      args.push(status);
     }
     if (imageRel !== undefined) {
       sets.push("image=?");
