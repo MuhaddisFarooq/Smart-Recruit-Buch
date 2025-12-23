@@ -21,7 +21,7 @@ async function actorFromSession() {
   return s?.user?.email || s?.user?.name || "system";
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     // 🔒 Require "view"
     const session = await getServerSession(authOptions);
@@ -30,6 +30,30 @@ export async function GET() {
     if (!hasPerm(perms, "management_team", "view")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, Number(searchParams.get("page") || 1));
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") || 10)));
+    const search = (searchParams.get("search") || "").trim();
+
+    const where: string[] = [];
+    const args: any[] = [];
+
+    if (search) {
+      where.push("(name LIKE ? OR designation LIKE ?)");
+      args.push(`%${search}%`, `%${search}%`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    // Count total
+    const countRes = await query<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt FROM management_team ${whereSql}`,
+      args
+    );
+    const total = countRes[0]?.cnt || 0;
+
+    // Fetch data
     const rows = await query<{
       id: number;
       name: string;
@@ -41,13 +65,19 @@ export async function GET() {
       updated_by?: string | null;
       updated_date?: any;
       created_at?: any;
-    }>(`
+    }>(
+      `
       SELECT id, name, designation, photo, status,
              added_by, added_date, updated_by, updated_date, created_at
       FROM management_team
+      ${whereSql}
       ORDER BY id DESC
-    `);
-    return NextResponse.json({ data: rows });
+      LIMIT ? OFFSET ?
+      `,
+      [...args, pageSize, (page - 1) * pageSize]
+    );
+
+    return NextResponse.json({ data: rows, total, page, pageSize });
   } catch (err: any) {
     console.error("[management-team:GET] DB error:", err);
     return NextResponse.json({ error: err?.message || "DB error" }, { status: 500 });

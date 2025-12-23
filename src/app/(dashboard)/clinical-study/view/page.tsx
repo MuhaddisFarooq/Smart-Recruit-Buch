@@ -82,23 +82,33 @@ export default function ClinicalStudyViewPage() {
   }, [search]);
 
   async function toggleStatus(id: number) {
+    // Optimistic update
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r
+      )
+    );
+
     try {
-      const task = (async () => {
-        const res = await fetch(`/api/clinical-study/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ toggleStatus: true }),
-        });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
-      })();
-      await notify.promise(task, {
-        loading: "Updating status…",
-        success: "Status updated.",
-        error: (e) => (e as Error)?.message || "Could not update status.",
+      const res = await fetch(`/api/clinical-study/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toggleStatus: true }),
       });
-      await loadAt();
-    } catch { /* toast already shown */ }
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(j?.error || `HTTP ${res.status}`);
+      }
+      notify.success("Status updated.");
+    } catch (e: any) {
+      // Revert
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r
+        )
+      );
+      notify.error(e?.message || "Could not update status.");
+    }
   }
 
   async function onDelete(id: number) {

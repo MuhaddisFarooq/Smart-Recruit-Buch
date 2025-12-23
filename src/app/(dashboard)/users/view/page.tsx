@@ -102,25 +102,33 @@ export default function ViewUsersPage() {
   }, [search]);
 
   async function toggle(id: number) {
+    // Optimistic update
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r
+      )
+    );
+
     try {
-      const task = (async () => {
-        const r = await fetch(`/api/users/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ _toggleStatus: true }),
-          credentials: "include",
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-      })();
-      await notify.promise(task, {
-        loading: "Updating status…",
-        success: "Status updated.",
-        error: (e) => (e as Error)?.message || "Could not update status.",
+      const r = await fetch(`/api/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _toggleStatus: true }),
+        credentials: "include",
       });
-      load(page);
-    } catch {
-      /* toast handles */
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(j?.error || `HTTP ${r.status}`);
+      }
+      notify.success("Status updated.");
+    } catch (e: any) {
+      // Revert
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r
+        )
+      );
+      notify.error(e?.message || "Failed to update status.");
     }
   }
 

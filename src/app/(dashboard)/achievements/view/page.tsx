@@ -108,7 +108,7 @@ export default function AchievementsViewPage() {
             <div key={r.id} className="group relative overflow-hidden rounded-xl border bg-white shadow-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={toUrl(r.image)} alt={`Achievement ${r.id}`} className="h-56 w-full object-cover" />
-              <div className="absolute right-2 top-2 flex gap-2 opacity-0 transition group-hover:opacity-100">
+              <div className="absolute right-2 top-2 flex gap-2">
                 {canDelete && (
                   <button
                     title="Delete"
