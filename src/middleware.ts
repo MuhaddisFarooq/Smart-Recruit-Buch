@@ -7,7 +7,7 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   // If not signed in, send to sign-in page ONLY if not already there
-  if (!token && req.nextUrl.pathname !== "/") {
+  if (!token && req.nextUrl.pathname !== "/" && req.nextUrl.pathname !== "/register") {
     return NextResponse.redirect(new URL("/", req.url));
   }
 

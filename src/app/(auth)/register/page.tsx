@@ -1,0 +1,95 @@
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Link from "next/link";
+import { Loader2 } from "lucide-react";
+
+export default function RegisterPage() {
+    const router = useRouter();
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setIsLoading(true);
+
+        const form = new FormData(e.currentTarget);
+        const name = String(form.get("name") || "").trim(); // Added
+        const email = String(form.get("email") || "").trim();
+        const password = String(form.get("password") || "").trim();
+        const confirmPassword = String(form.get("confirmPassword") || "").trim();
+
+        if (password !== confirmPassword) {
+            toast.error("Passwords do not match");
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/auth/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, email, password }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                toast.success("Registration successful! Please login.");
+                router.push("/");
+            } else {
+                toast.error(data.error || "Registration failed");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("An error occurred during registration");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="w-full lg:w-[30%] flex flex-col justify-center p-8">
+            <div className="text-center mb-8">
+                <img src="/buch-logo.png" alt="Company Logo" className="w-40 mx-auto pointer-events-none" />
+            </div>
+            <div className="text-center mb-6">
+                <h1 className="text-2xl font-bold">Create Account</h1>
+                <p className="text-muted-foreground text-sm">Sign up to apply for jobs</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-md mx-auto">
+                <div className="space-y-1">
+                    <label htmlFor="name" className="text-sm font-medium">Username</label>
+                    <Input id="name" name="name" type="text" placeholder="John Doe" required />
+                </div>
+                <div className="space-y-1">
+                    <label htmlFor="email" className="text-sm font-medium">Email</label>
+                    <Input id="email" name="email" type="email" placeholder="example@binc.pk" required />
+                </div>
+                <div className="space-y-1">
+                    <label htmlFor="password" className="text-sm font-medium">Password</label>
+                    <Input id="password" name="password" type="password" required />
+                </div>
+                <div className="space-y-1">
+                    <label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</label>
+                    <Input id="confirmPassword" name="confirmPassword" type="password" required />
+                </div>
+
+                <Button type="submit" className="bg-[#b9d36c] hover:bg-[#a8c65f] text-white w-full shadow-md" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Register"}
+                </Button>
+
+                <div className="text-center text-sm mt-4">
+                    Already have an account?{" "}
+                    <Link href="/" className="text-primary hover:underline font-medium">
+                        Sign in
+                    </Link>
+                </div>
+            </form>
+        </div>
+    );
+}

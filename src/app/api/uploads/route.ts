@@ -9,7 +9,7 @@ function sanitizeName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
 }
 
-const ALLOWED_FOLDERS = new Set(["consultants", "categories", "careers", "misc"]);
+const ALLOWED_FOLDERS = new Set(["consultants", "categories", "careers", "misc", "resumes"]);
 
 /** Try to compress an image buffer using sharp if available. */
 async function maybeCompressImage(
@@ -37,7 +37,7 @@ async function maybeCompressImage(
     let maxSide = 999999;            // effectively no limit for high quality
     let quality = 98;                // high-quality 98% for better preservation
     const targetBytes = 10 * 1024 * 1024;  // ~10MB target (much larger for quality)
-    
+
     // Check if this is a PNG image to preserve transparency
     const isPNG = mime === "image/png" || meta?.format === "png";
 
@@ -56,11 +56,11 @@ async function maybeCompressImage(
           });
         }
       }
-      
+
       // Use PNG format for PNG images to preserve transparency, JPEG for others
       if (isPNG) {
-        return pipe.png({ 
-          quality: Math.round(quality), 
+        return pipe.png({
+          quality: Math.round(quality),
           compressionLevel: 6, // Less aggressive compression for quality
           progressive: false   // Better for quality 
         });
@@ -70,7 +70,7 @@ async function maybeCompressImage(
     };
 
     let out: Buffer = await makePipeline().toBuffer();
-    
+
     // Only compress if file is still very large (over 10MB)
     let attempts = 0;
     while (out.byteLength > targetBytes && attempts < 3) {

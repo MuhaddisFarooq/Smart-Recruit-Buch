@@ -33,7 +33,7 @@ const SEED_USERS: SeedUser[] = [
     name: "Site Admin",
     department: "IT",
     designation: "Admin",
-    email: "admin@buchhospital.ccom",
+    email: "admin@buchhospital.com",
     password: "admin123!",
     role: "admin",
   },

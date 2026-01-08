@@ -1,4 +1,5 @@
 "use client"
+import React from "react"
 
 import {
   BadgeCheck,
@@ -100,7 +101,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup> */}
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
+            {/* <DropdownMenuGroup>
               <DropdownMenuItem>
                 <BadgeCheck />
                 Account
@@ -110,11 +111,11 @@ export function NavUser({
                 Change Password
               </DropdownMenuItem>
             
-              {/* <DropdownMenuItem>
-                <Bell />
-                Notifications
-              </DropdownMenuItem> */}
-            </DropdownMenuGroup>
+              // <DropdownMenuItem>
+              //   <Bell />
+              //   Notifications
+              // </DropdownMenuItem>
+            </DropdownMenuGroup> */}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout}>
               <LogOut />

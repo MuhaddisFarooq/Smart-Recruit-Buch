@@ -13,13 +13,18 @@ export const metadata: Metadata = {
   description: "A Full Fledge Web Application",
 };
 
-export default function RootLayout({
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/options";
+
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const session = await getServerSession(authOptions);
+
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
+        <AuthProvider session={session}>
           <QueryProvider>
             {/* Provide confirm modal context app-wide */}
             <ConfirmProvider>

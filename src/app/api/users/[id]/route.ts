@@ -1,243 +1,106 @@
-// src/app/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { query, execute } from "@/lib/db";
+import { execute, query } from "@/lib/db";
+import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
-import path from "path";
-import { promises as fs } from "fs";
-import bcrypt from "bcryptjs";
-import { saveOptimizedImage } from "../../_helpers/image-processing";
-import { hasPerm } from "@/lib/perms";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // ensure Node runtime
+export const dynamic = 'force-dynamic';
 
-async function ensureDir(d: string) { await fs.mkdir(d, { recursive: true }); }
-function sanitize(n: string) { return n.replace(/[^a-zA-Z0-9._-]+/g, "_"); }
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
-async function requireActor() {
-  const s = await getServerSession(authOptions).catch(() => null);
-  if (!s?.user) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) } as const;
-  }
-  return { actor: s.user.email || s.user.name || "system" } as const;
+        const rows = await query("SELECT * FROM users WHERE id = ?", [id]);
+
+        if (!rows || (rows as any[]).length === 0) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
+        return NextResponse.json((rows as any[])[0]);
+    } catch (error: any) {
+        console.error("Error fetching user:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }
 
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
 
-
-// cache column presence
-let hasGroupIdCol: boolean | undefined;
-async function ensureHasGroupIdColumn(): Promise<boolean> {
-  if (typeof hasGroupIdCol === "boolean") return hasGroupIdCol;
-  const cols = await query<any>("SHOW COLUMNS FROM users LIKE 'group_id'");
-  hasGroupIdCol = cols.length > 0;
-  return hasGroupIdCol;
-}
-
-/** GET one */
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params;
-  try {
-    // 🔒 Require "view"
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const perms = (session.user as any)?.perms;
-    if (!hasPerm(perms, "users", "view")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const num = Number(id);
-    if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
-
-    const rows = await query<any>("SELECT * FROM users WHERE id=? LIMIT 1", [num]);
-    if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ data: rows[0] });
-  } catch (e: any) {
-    console.error("[users:GET one]", e);
-    return NextResponse.json({ error: e?.message || "DB error" }, { status: 500 });
-  }
-}
-
-/** PATCH one (JSON or multipart) */
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params;
-  try {
-    const num = Number(id);
-    if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
-
-    // 🔒 Require "edit"
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const perms = (session.user as any)?.perms;
-    if (!hasPerm(perms, "users", "edit")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const actor = session.user?.email || session.user?.name || "system";
-    const now = new Date();
-
-    const ct = (req.headers.get("content-type") || "").toLowerCase();
-
-    // quick toggle path
-    // Read JSON once if applicable
-    let jsonBody: any = null;
-    if (ct.includes("application/json")) {
-      jsonBody = await req.json().catch(() => ({}));
-    }
-
-    // quick toggle path
-    if (jsonBody?._toggleStatus) {
-      const [{ status = "inactive" } = {}] = await query<{ status: string }>(
-        "SELECT status FROM users WHERE id=? LIMIT 1",
-        [num]
-      );
-      const newStatus = status === "active" ? "inactive" : "active";
-      await execute(
-        "UPDATE users SET status=?, updatedBy=?, updatedDate=? WHERE id=?",
-        [newStatus, actor, now, num]
-      );
-      return NextResponse.json({ ok: true, status: newStatus });
-    }
-
-    let employee_id: string | undefined;
-    let name: string | undefined;
-    let department: string | undefined;
-    let designation: string | undefined;
-    let status: string | undefined;
-    let email: string | undefined;
-    let password: string | undefined;
-    let pictureRel: string | undefined;
-    let group_id: number | null | undefined;
-
-    if (ct.includes("multipart/form-data")) {
-      const fd = await req.formData();
-      if (fd.has("employee_id")) employee_id = String(fd.get("employee_id") || "");
-      if (fd.has("name")) name = String(fd.get("name") || "");
-      if (fd.has("department")) department = String(fd.get("department") || "");
-      if (fd.has("designation")) designation = String(fd.get("designation") || "");
-      if (fd.has("status")) status = (String(fd.get("status") || "active").toLowerCase() === "inactive" ? "inactive" : "active");
-      if (fd.has("email")) email = String(fd.get("email") || "").trim().toLowerCase();
-      if (fd.has("password")) password = String(fd.get("password") || "");
-
-      if (fd.has("group_id")) {
-        const raw = String(fd.get("group_id") ?? "").trim();
-        if (raw === "") group_id = null;
-        else {
-          const n = Number(raw);
-          if (Number.isFinite(n)) group_id = n;
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-      }
+        const updatedBy = session.user?.name || session.user?.email || "Unknown";
 
-      const file = fd.get("picture") as File | null;
-      if (file && file.size > 0) {
-        pictureRel = await saveOptimizedImage(file, "users", null, 98);
-        const old = await query<{ picture: string | null }>("SELECT picture FROM users WHERE id=? LIMIT 1", [num]);
-        const oldRel = old[0]?.picture;
-        if (oldRel) {
-          const absOld = path.join(process.cwd(), "public", "uploads", oldRel);
-          fs.unlink(absOld).catch(() => void 0);
+        const body = await req.json();
+        const {
+            employee_id,
+            name,
+            department,
+            designation,
+            email,
+            password,
+            role,
+            status,
+            picture
+        } = body;
+
+        // Check if user exists
+        const existing = await query("SELECT id, password FROM users WHERE id = ?", [id]);
+        if (!existing || (existing as any[]).length === 0) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
-      }
-    } else {
-      const b: any = jsonBody || {};
-      if ("employee_id" in b) employee_id = String(b.employee_id || "");
-      if ("name" in b) name = String(b.name || "");
-      if ("department" in b) department = String(b.department || "");
-      if ("designation" in b) designation = String(b.designation || "");
-      if ("status" in b) status = (String(b.status || "active").toLowerCase() === "inactive" ? "inactive" : "active");
-      if ("email" in b) email = String(b.email || "").trim().toLowerCase();
-      if ("password" in b) password = String(b.password || "");
 
-      if ("group_id" in b) {
-        const raw = String(b.group_id ?? "").trim();
-        if (raw === "") group_id = null;
-        else {
-          const n = Number(raw);
-          if (Number.isFinite(n)) group_id = n;
+        let finalPassword = (existing as any[])[0].password;
+        if (password && password.trim() !== "") {
+            finalPassword = await bcrypt.hash(password, 10);
         }
-      }
-    }
 
-    // if email is provided, enforce non-empty + uniqueness (excluding self)
-    if (email !== undefined) {
-      if (!email) return NextResponse.json({ error: "email is required" }, { status: 400 });
-      const exists = await query<{ cnt: number }>(
-        "SELECT COUNT(*) AS cnt FROM users WHERE email=? AND id<>?",
-        [email, num]
-      );
-      if (exists[0]?.cnt > 0) return NextResponse.json({ error: "Email already exists" }, { status: 409 });
-    }
-
-    // build dynamic UPDATE
-    const sets: string[] = ["updatedBy=?", "updatedDate=?"];
-    const args: any[] = [actor, now];
-
-    if (employee_id !== undefined) { sets.push("employee_id=?"); args.push(employee_id); }
-    if (name !== undefined) { sets.push("name=?"); args.push(name); }
-    if (department !== undefined) { sets.push("department=?"); args.push(department); }
-    if (designation !== undefined) { sets.push("designation=?"); args.push(designation); }
-    if (status !== undefined) { sets.push("status=?"); args.push(status); }
-    if (email !== undefined) { sets.push("email=?"); args.push(email); }
-    if (password !== undefined && password) {
-      const hashed = await bcrypt.hash(password, 10);
-      sets.push("password=?"); args.push(hashed);
-    }
-    if (pictureRel !== undefined) { sets.push("picture=?"); args.push(pictureRel); }
-
-    if (await ensureHasGroupIdColumn()) {
-      if (group_id !== undefined) { sets.push("group_id=?"); args.push(group_id); }
-    }
-
-    await execute(`UPDATE users SET ${sets.join(", ")} WHERE id=?`, [...args, num]);
-
-    // Handle group assignment via user_group_members table (fallback if no group_id column)
-    if (group_id !== undefined && !(await ensureHasGroupIdColumn())) {
-      // Remove existing group memberships for this user
-      await execute("DELETE FROM user_group_members WHERE user_id=?", [num]);
-
-      // Add new group membership if group_id is provided
-      if (group_id !== null) {
         await execute(
-          "INSERT INTO user_group_members (user_id, group_id, addedBy, addedDate) VALUES (?, ?, ?, ?)",
-          [num, group_id, actor, now]
+            `UPDATE users SET 
+        employee_id=?, name=?, department=?, designation=?, email=?, 
+        password=?, role=?, status=?, picture=?, updatedBy=?, updatedDate=NOW()
+       WHERE id=?`,
+            [
+                employee_id || null,
+                name,
+                department || null,
+                designation || null,
+                email,
+                finalPassword,
+                role,
+                status,
+                picture || null,
+                updatedBy,
+                id
+            ]
         );
-      }
-    }
 
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    console.error("[users:PATCH]", e);
-    return NextResponse.json({ error: e?.message || "DB error" }, { status: 500 });
-  }
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        console.error("Error updating user:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }
 
-/** DELETE one */
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params;
-  try {
-    const num = Number(id);
-    if (!Number.isFinite(num)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        // Prevent deleting yourself? optional check.
 
-    // require session for destructive action
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const perms = (session.user as any)?.perms;
-    if (!hasPerm(perms, "users", "delete")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        await execute("DELETE FROM users WHERE id=?", [id]);
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        console.error("Error deleting user:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    // already authenticated above
-
-    const old = await query<{ picture: string | null }>("SELECT picture FROM users WHERE id=? LIMIT 1", [num]);
-    const oldRel = old[0]?.picture;
-    if (oldRel) {
-      const absOld = path.join(process.cwd(), "public", "uploads", oldRel);
-      fs.unlink(absOld).catch(() => void 0);
-    }
-    await execute("DELETE FROM users WHERE id=?", [num]);
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    console.error("[users:DELETE]", e);
-    return NextResponse.json({ error: e?.message || "DB error" }, { status: 500 });
-  }
 }

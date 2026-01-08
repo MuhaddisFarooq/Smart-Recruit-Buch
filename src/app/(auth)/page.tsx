@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLoadingStore } from "@/store/useLoadingStore";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 
 const mapNextAuthError = (code?: string) => {
@@ -65,18 +66,31 @@ function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-md mx-auto">
-      <div className="space-y-1">
-        <label htmlFor="email" className="text-sm font-medium">Email</label>
-        <Input id="email" name="email" type="email" placeholder="example@binc.pk" required />
-      </div>
-      <div className="space-y-1">
-        <label htmlFor="password" className="text-sm font-medium">Password</label>
-        <Input id="password" name="password" type="password" required />
-      </div>
+    <div className="w-full max-w-md mx-auto space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-1">
+          <label htmlFor="email" className="text-sm font-medium">Email</label>
+          <Input id="email" name="email" type="email" placeholder="example@binc.pk" required />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="password" className="text-sm font-medium">Password</label>
+          <Input id="password" name="password" type="password" required />
+        </div>
 
-      <Button type="submit" className="bg-primary w-full shadow-md">Sign in</Button>
-    </form>
+        <Button type="submit" className="bg-primary w-full shadow-md">Sign in</Button>
+      </form>
+
+      <div className="text-center text-sm">
+        Don&apos;t have an account?{" "}
+        <button
+          type="button"
+          onClick={() => window.location.href = '/register'}
+          className="text-primary hover:underline font-medium bg-transparent border-none cursor-pointer p-0"
+        >
+          Register
+        </button>
+      </div>
+    </div>
   );
 }
 

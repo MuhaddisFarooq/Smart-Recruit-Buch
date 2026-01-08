@@ -1,294 +1,260 @@
-// src/app/(dashboard)/users/[id]/edit/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { notify } from "@/components/ui/notify";
-import type { PermissionMap, PermAction } from "@/lib/perms-client";
+import { useForm } from "react-hook-form";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Loader2, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-type UserGroup = {
-  id: number;
-  name: string;
-  permissions: PermissionMap;
-  status?: string | null;
+type EditUserFormData = {
+    employee_id: string;
+    name: string;
+    department: string;
+    designation: string;
+    role: string;
+    status: string;
+    email: string;
+    password?: string; // Optional for edit
 };
 
-type Row = {
-  id: number;
-  employee_id: string | null;
-  name: string | null;
-  department: string | null;
-  designation: string | null;
-  picture: string | null;
-  status: "active" | "inactive" | null;
-  email: string | null;
-  group_id?: number | null;    // ⬅️ possible when column exists
-};
+export default function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
+    const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<EditUserFormData>();
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [picture, setPicture] = useState<File | null>(null);
+    const [currentPicture, setCurrentPicture] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
 
-function url(p?: string | null) {
-  if (!p) return "";
-  return p.startsWith("/") ? p : `/uploads/${p}`;
-}
+    const router = useRouter();
 
-export default function EditUserPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+    useEffect(() => {
+        loadUser();
+    }, []);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+    const loadUser = async () => {
+        try {
+            const { id } = await params;
+            setUserId(id);
+            const res = await fetch(`/api/users/${id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setValue("employee_id", data.employee_id);
+                setValue("name", data.name);
+                setValue("department", data.department);
+                setValue("designation", data.designation);
+                setValue("role", data.role);
+                setValue("status", data.status);
+                setValue("email", data.email);
+                setCurrentPicture(data.picture);
+            } else {
+                toast.error("Failed to load user");
+            }
+        } catch (error) {
+            console.error("Error loading user:", error);
+            toast.error("Error loading user");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const [employeeId, setEmployeeId] = useState("");
-  const [name, setName] = useState("");
-  const [department, setDepartment] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [status, setStatus] = useState<"active" | "inactive">("active");
+    const onSubmit = async (data: EditUserFormData) => {
+        if (!userId) return;
+        setIsSaving(true);
+        try {
+            // 1. Upload new picture if selected
+            let picturePath = currentPicture;
+            if (picture) {
+                const formData = new FormData();
+                formData.append("file", picture);
+                const uploadRes = await fetch("/api/uploads?folder=users", {
+                    method: "POST",
+                    body: formData,
+                });
 
-  const [email, setEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    picturePath = uploadData.fileName;
+                } else {
+                    toast.error("Failed to upload picture");
+                    setIsSaving(false);
+                    return;
+                }
+            }
 
-  const [image, setImage] = useState<File | null>(null);
-  const [existingPic, setExistingPic] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+            // 2. Update User
+            const payload = { ...data, picture: picturePath };
+            if (!payload.password) delete payload.password; // Don't send empty password
 
-  // groups
-  const [groups, setGroups] = useState<UserGroup[]>([]);
-  const [groupId, setGroupId] = useState<number | "">("");
+            const res = await fetch(`/api/users/${userId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
 
-  useEffect(() => {
-    // load groups first (for select)
-    (async () => {
-      try {
-        const r = await fetch("/api/user-groups", { cache: "no-store" });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-        setGroups(Array.isArray(j.data) ? j.data : []);
-      } catch {
-        setGroups([]);
-      }
-    })();
-  }, []);
+            if (res.ok) {
+                toast.success("User updated successfully");
+                router.push("/users");
+            } else {
+                const errorData = await res.json();
+                toast.error(errorData.error || "Failed to update user");
+            }
+        } catch (error) {
+            console.error("Error updating user:", error);
+            toast.error("An error occurred");
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch(`/api/users/${id}`, { cache: "no-store", credentials: "include" });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-
-        const d: Row = j.data;
-        setEmployeeId(d.employee_id || "");
-        setName(d.name || "");
-        setDepartment(d.department || "");
-        setDesignation(d.designation || "");
-        setStatus((d.status as any) || "active");
-        setExistingPic(d.picture || null);
-        setPreview(url(d.picture));
-        setEmail((d.email || "").toLowerCase());
-        if (d.group_id !== undefined && d.group_id !== null) setGroupId(d.group_id);
-      } catch (e: any) {
-        notify.error(e?.message || "Failed to load user.");
-        router.push("/users/view");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id, router]);
-
-  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0] || null;
-    setImage(f);
-    setPreview(f ? URL.createObjectURL(f) : url(existingPic));
-  }
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (!employeeId.trim() || !name.trim()) {
-      return notify.error("Employee ID and Name are required.");
-    }
-    if (!email.trim()) {
-      return notify.error("Email is required.");
+    if (isLoading) {
+        return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
     }
 
-    try {
-      setSaving(true);
-      let res: Response;
+    return (
+        <div className="container max-w-2xl mx-auto py-8">
+            <h1 className="text-2xl font-bold mb-4">Edit User</h1>
+            <Card>
+                <CardContent className="pt-6">
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="employee_id">Employee ID *</Label>
+                                <Input
+                                    id="employee_id"
+                                    placeholder="e.g. EMP001"
+                                    {...register("employee_id", { required: "Employee ID is required" })}
+                                />
+                                {errors.employee_id && <p className="text-red-500 text-sm">{errors.employee_id.message}</p>}
+                            </div>
 
-      if (image) {
-        const fd = new FormData();
-        fd.append("employee_id", employeeId);
-        fd.append("name", name);
-        fd.append("department", department);
-        fd.append("designation", designation);
-        fd.append("status", status);
-        fd.append("email", email.trim().toLowerCase()); // normalize
-        if (newPassword) fd.append("password", newPassword);
-        if (typeof groupId === "number") fd.append("group_id", String(groupId));
-        fd.append("picture", image);
-        res = await fetch(`/api/users/${id}`, { method: "PATCH", body: fd, credentials: "include" });
-      } else {
-        const body: any = {
-          employee_id: employeeId,
-          name,
-          department,
-          designation,
-          status,
-          email: email.trim().toLowerCase(), // normalize
-        };
-        if (newPassword) body.password = newPassword;
-        if (typeof groupId === "number") body.group_id = groupId;
-        res = await fetch(`/api/users/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          credentials: "include",
-        });
-      }
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name *</Label>
+                                <Input
+                                    id="name"
+                                    placeholder="Full Name"
+                                    {...register("name", { required: "Name is required" })}
+                                />
+                                {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
+                            </div>
 
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
-      notify.success("User updated.");
-      router.push("/users/view");
-    } catch (e: any) {
-      notify.error(e?.message || "Failed to update.");
-    } finally {
-      setSaving(false);
-    }
-  }
+                            <div className="space-y-2">
+                                <Label htmlFor="department">Department</Label>
+                                <Input
+                                    id="department"
+                                    placeholder="e.g. IT, HR"
+                                    {...register("department")}
+                                />
+                            </div>
 
+                            <div className="space-y-2">
+                                <Label htmlFor="designation">Designation</Label>
+                                <Input
+                                    id="designation"
+                                    placeholder="e.g. Manager"
+                                    {...register("designation")}
+                                />
+                            </div>
 
+                            <div className="space-y-2">
+                                <Label htmlFor="role">Role *</Label>
+                                {/* Using the standard select properly with hook form requires controller or controlled component pattern.
+                                    Here we use defaultValue + setValue/useEffect simplistically but robustly.
+                                */}
+                                <Select onValueChange={(val) => setValue("role", val)} defaultValue={watch("role")}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="user">User</SelectItem>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                        <SelectItem value="superadmin">Super Admin</SelectItem>
+                                        <SelectItem value="hr">HR</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-  if (loading) return <div className="p-6">Loading…</div>;
+                            <div className="space-y-2">
+                                <Label htmlFor="status">Status</Label>
+                                <Select onValueChange={(val) => setValue("status", val)} defaultValue={watch("status") || "Active"}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Active">Active</SelectItem>
+                                        <SelectItem value="Inactive">Inactive</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
 
-  return (
-    <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">Edit User</h1>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email *</Label>
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    placeholder="email@example.com"
+                                    {...register("email", { required: "Email is required" })}
+                                />
+                                {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
+                            </div>
 
-      <form onSubmit={save} className="rounded-xl border bg-white p-5 shadow-sm max-w-3xl space-y-6">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Employee ID *</label>
-            <input
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-            />
-          </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="password">New Password</Label>
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    placeholder="Leave blank to keep existing"
+                                    {...register("password")}
+                                />
+                            </div>
+                        </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Name *</label>
-            <input
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
+                        <div className="space-y-2">
+                            <Label>Picture</Label>
+                            <div className="flex items-center gap-4">
+                                {currentPicture && !picture && (
+                                    <Avatar className="h-10 w-10">
+                                        <AvatarImage src={`/uploads/${currentPicture}`} />
+                                        <AvatarFallback>PIC</AvatarFallback>
+                                    </Avatar>
+                                )}
+                                <Input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => setPicture(e.target.files?.[0] || null)}
+                                    className="hidden"
+                                    id="picture-edit-upload"
+                                />
+                                <Label htmlFor="picture-edit-upload" className="cursor-pointer border rounded-md p-2 flex items-center gap-2 hover:bg-muted">
+                                    <Upload className="w-4 h-4" />
+                                    {picture ? picture.name : (currentPicture ? "Change File" : "Choose File")}
+                                </Label>
+                            </div>
+                        </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Department</label>
-            <input
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Designation</label>
-            <input
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              value={designation}
-              onChange={(e) => setDesignation(e.target.value)}
-            />
-          </div>
-
-          {/* Group selector */}
-          <div>
-            <label className="mb-1 block text-sm font-medium">User Group</label>
-            <select
-              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
-              value={groupId}
-              onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">— None —</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Status</label>
-            <select
-              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as "active" | "inactive")}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Email *</label>
-            <input
-              type="email"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">New Password</label>
-            <input
-              type="password"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Leave blank to keep existing"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium">Picture</label>
-            <div className="flex items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-md border bg-gray-50">
-                {preview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={preview} alt="preview" className="h-20 w-20 object-cover" />
-                ) : (
-                  <span className="text-xs text-gray-400">No image</span>
-                )}
-              </div>
-              <input type="file" accept="image/*" onChange={onPick} />
-            </div>
-          </div>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <Button variant="outline" type="button" onClick={() => router.back()}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving} className="bg-[#b9d36c] hover:bg-[#a8c65f] text-white">
+                                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                                Save
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
-
-
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => history.back()}
-            className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
-            disabled={saving}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-md bg-[#c8e967] px-4 py-2 text-sm font-medium text-black hover:bg-[#b9db58] disabled:opacity-60"
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+    );
 }
-
-
