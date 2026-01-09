@@ -45,6 +45,49 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const [otherJobs, setOtherJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Update meta tags when job loads for social sharing
+    useEffect(() => {
+        if (job) {
+            document.title = `${job.job_title} - Buch International Hospital`;
+
+            // Update or create Open Graph meta tags
+            const updateMeta = (property: string, content: string) => {
+                let meta = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement;
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.setAttribute('property', property);
+                    document.head.appendChild(meta);
+                }
+                meta.setAttribute('content', content);
+            };
+
+            const updateMetaName = (name: string, content: string) => {
+                let meta = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement;
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.setAttribute('name', name);
+                    document.head.appendChild(meta);
+                }
+                meta.setAttribute('content', content);
+            };
+
+            const description = `${job.job_title} opportunity at Buch International Hospital. Location: ${job.location}. Type: ${job.type_of_employment}. Apply now!`;
+            const url = window.location.href;
+
+            // Open Graph tags
+            updateMeta('og:title', `${job.job_title} - Buch International Hospital`);
+            updateMeta('og:description', description);
+            updateMeta('og:url', url);
+            updateMeta('og:type', 'website');
+            updateMeta('og:site_name', 'Buch International Hospital Careers');
+
+            // Twitter Card tags
+            updateMetaName('twitter:card', 'summary_large_image');
+            updateMetaName('twitter:title', `${job.job_title} - Buch International Hospital`);
+            updateMetaName('twitter:description', description);
+        }
+    }, [job]);
+
     useEffect(() => {
         if (resolvedParams.id) {
             fetchJob(resolvedParams.id);
@@ -181,9 +224,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                                 I&apos;m interested
                             </Button>
                         </Link>
-                        <Button variant="outline" className="w-full bg-slate-50 text-slate-700 hover:bg-slate-100 text-md py-6 border-slate-200 rounded-sm shadow-sm">
-                            Refer a friend
-                        </Button>
+                        <Link href={`/jobs/${resolvedParams.id}/refer`}>
+                            <Button variant="outline" className="w-full bg-slate-50 text-slate-700 hover:bg-slate-100 text-md py-6 border-slate-200 rounded-sm shadow-sm">
+                                Refer a friend
+                            </Button>
+                        </Link>
                     </div>
 
                     {/* Branding / Logo (Optional, using text header from screenshot) */}
@@ -195,16 +240,51 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     <div className="space-y-3">
                         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Share this job</h4>
                         <div className="flex gap-2">
-                            <Button size="icon" variant="outline" className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-[#0077b5] hover:border-[#0077b5] transition-colors">
+                            <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-[#0077b5] hover:border-[#0077b5] transition-colors"
+                                onClick={() => {
+                                    const url = encodeURIComponent(window.location.href);
+                                    const title = encodeURIComponent(`${job.job_title} at Buch International Hospital`);
+                                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=600,height=400');
+                                }}
+                            >
                                 <Linkedin className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="outline" className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-[#1877F2] hover:border-[#1877F2] transition-colors">
+                            <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-[#1877F2] hover:border-[#1877F2] transition-colors"
+                                onClick={() => {
+                                    const url = encodeURIComponent(window.location.href);
+                                    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=600,height=400');
+                                }}
+                            >
                                 <Facebook className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="outline" className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-black hover:border-black transition-colors">
+                            <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-black hover:border-black transition-colors"
+                                onClick={() => {
+                                    const url = encodeURIComponent(window.location.href);
+                                    const text = encodeURIComponent(`Check out this job: ${job.job_title} at Buch International Hospital`);
+                                    window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
+                                }}
+                            >
                                 <Twitter className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="outline" className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-slate-500 hover:border-slate-500 transition-colors">
+                            <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8 rounded-sm border-slate-300 text-slate-600 hover:text-white hover:bg-slate-500 hover:border-slate-500 transition-colors"
+                                onClick={() => {
+                                    const subject = encodeURIComponent(`Job Opportunity: ${job.job_title} at Buch International Hospital`);
+                                    const body = encodeURIComponent(`I thought you might be interested in this job opportunity:\n\n${job.job_title}\nLocation: ${job.location}\n\nApply here: ${window.location.href}`);
+                                    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                                }}
+                            >
                                 <Mail className="h-4 w-4" />
                             </Button>
                         </div>

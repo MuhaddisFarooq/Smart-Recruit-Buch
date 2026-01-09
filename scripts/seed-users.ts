@@ -1,97 +1,76 @@
-// scripts/seed-users.ts
-import { config as loadEnv } from "dotenv";
-import path from "path";
-import bcrypt from "bcryptjs";
+import mysql from 'mysql2/promise';
+import bcrypt from 'bcryptjs';
+import * as dotenv from 'dotenv';
 
-// 1) Load env FIRST (.env.local, then .env)
-const root = process.cwd();
-loadEnv({ path: path.join(root, ".env.local") });
-loadEnv({ path: path.join(root, ".env") });
+dotenv.config();
 
-type SeedUser = {
-  employee_id: string;
-  name: string;
-  department: string;
-  designation: string;
-  email: string;
-  password: string; // plain; will be hashed
-  role: "superadmin" | "admin";
-};
+async function seedUsers() {
+  const connection = await mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306'),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'smart-recruit',
+  });
 
-const SEED_USERS: SeedUser[] = [
-  {
-    employee_id: "SA0001",
-    name: "Root Superadmin",
-    department: "IT",
-    designation: "Super Admin",
-    email: "superadmin@buchhospital.com",
-    password: "superadmin123!",
-    role: "superadmin",
-  },
-  {
-    employee_id: "AD0001",
-    name: "Site Admin",
-    department: "IT",
-    designation: "Admin",
-    email: "admin@buchhospital.com",
-    password: "admin123!",
-    role: "admin",
-  },
-];
+  console.log('Connected to database');
 
-async function main() {
-  // 2) Log effective target & guard env
-  const { DB_HOST, DB_PORT, DB_USER, DB_NAME } = process.env;
-  console.log(
-    `Seeding into mysql://${DB_USER ?? "(unset)"}@${DB_HOST ?? "127.0.0.1"}:${DB_PORT ?? "3306"}/${DB_NAME ?? "(unset)"}`
+  // 1. Clear existing users (and related data due to foreign keys)
+  console.log('Clearing existing data...');
+  await connection.execute('SET FOREIGN_KEY_CHECKS = 0');
+  await connection.execute('TRUNCATE TABLE job_applications');
+  await connection.execute('TRUNCATE TABLE job_referrals');
+  await connection.execute('TRUNCATE TABLE candidate_experience');
+  await connection.execute('TRUNCATE TABLE candidate_education');
+  await connection.execute('TRUNCATE TABLE users');
+  await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
+  console.log('Cleared all user data');
+
+  // 2. Hash passwords
+  const superadminPassword = await bcrypt.hash('superadmin123', 10);
+  const hrPassword = await bcrypt.hash('hr123', 10);
+
+  // 3. Seed Superadmin
+  await connection.execute(
+    `INSERT INTO users (employee_id, name, department, designation, email, password, role, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      'EMP001',
+      'Super Admin',
+      'Administration',
+      'System Administrator',
+      'superadmin@buch.com',
+      superadminPassword,
+      'superadmin',
+      'Active'
+    ]
   );
-  if (!DB_USER || !DB_NAME) {
-    console.error("❌ Missing DB_USER or DB_NAME in env (.env/.env.local).");
-    process.exit(1);
-  }
+  console.log('Created Superadmin user: superadmin@buch.com / superadmin123');
 
-  // 3) Import DB AFTER env is loaded (no top-level await)
-  const { query, execute, pool } = await import("../src/lib/db");
+  // 4. Seed HR User
+  await connection.execute(
+    `INSERT INTO users (employee_id, name, department, designation, email, password, role, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      'EMP002',
+      'HR Manager',
+      'Human Resources',
+      'HR Manager',
+      'hr@buch.com',
+      hrPassword,
+      'hr',
+      'Active'
+    ]
+  );
+  console.log('Created HR user: hr@buch.com / hr123');
 
-  async function upsertUser(u: SeedUser, addedBy = "seed") {
-    const email = u.email.trim().toLowerCase();
-    const now = new Date();
-
-    const existing = await query<{ id: number }>(
-      "SELECT id FROM users WHERE LOWER(email)=? LIMIT 1",
-      [email]
-    );
-
-    if (existing[0]?.id) {
-      await execute(
-        "UPDATE users SET role=?, status='active', updatedBy=?, updatedDate=? WHERE id=?",
-        [u.role, addedBy, now, existing[0].id]
-      );
-      console.log(`✓ updated ${email} -> role ${u.role}`);
-      return existing[0].id;
-    }
-
-    const hash = await bcrypt.hash(u.password, 10);
-    const res = await execute(
-      `INSERT INTO users
-        (employee_id, name, department, designation, email, password, picture, status, role, addedBy, addedDate)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, 'active', ?, ?, ?)`,
-      [u.employee_id, u.name, u.department, u.designation, email, hash, u.role, addedBy, now]
-    );
-    console.log(`✓ inserted ${email} as ${u.role} (id ${res.insertId})`);
-    return res.insertId;
-  }
-
-  const addedBy = process.env.SEED_ADDED_BY?.trim() || "seed";
-  for (const u of SEED_USERS) {
-    await upsertUser(u, addedBy);
-  }
-
-  await pool.end();
-  console.log("✅ Done.");
+  await connection.end();
+  console.log('\n✅ Done! Users seeded successfully.');
+  console.log('\n📋 Available Roles: superadmin, hr, candidate');
+  console.log('\n🔐 Login Credentials:');
+  console.log('   Superadmin: superadmin@buch.com / superadmin123');
+  console.log('   HR: hr@buch.com / hr123');
+  console.log('   Candidates: Register via /register');
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+seedUsers().catch(console.error);
