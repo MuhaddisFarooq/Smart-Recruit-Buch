@@ -76,6 +76,7 @@ export async function PATCH(
         if (body.country !== undefined) { fields.push("country = ?"); values.push(body.country || null); }
         if (body.internal_notes !== undefined) { fields.push("internal_notes = ?"); values.push(body.internal_notes || null); }
         if (body.target_hiring_date !== undefined) { fields.push("target_hiring_date = ?"); values.push(body.target_hiring_date || null); }
+        if (body.attachments !== undefined) { fields.push("attachments = ?"); values.push(body.attachments || null); }
 
         // Auto unpublish date handling
         if (body.auto_unpublish_date !== undefined) {

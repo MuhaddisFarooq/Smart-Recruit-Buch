@@ -1,21 +1,30 @@
-
 import { NextResponse } from "next/server";
-import { execute } from "@/lib/db";
-
-export const dynamic = "force-dynamic";
+import { execute } from "../../../lib/db";
 
 export async function GET() {
     try {
-        await execute(`
-            ALTER TABLE job_applications 
-            ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL,
-            ADD COLUMN IF NOT EXISTS user_id INT,
-            ADD COLUMN IF NOT EXISTS notes TEXT,
-            ADD COLUMN IF NOT EXISTS applied_date DATETIME DEFAULT CURRENT_TIMESTAMP;
-        `, []);
+        const columnsToAdd = [
+            { name: "internal_notes", type: "TEXT" },
+            { name: "target_hiring_date", type: "DATE" },
+            { name: "attachments", type: "TEXT" }
+        ];
 
-        return NextResponse.json({ success: true, message: "Schema updated: Added email and other potential missing cols" });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const results = [];
+
+        for (const col of columnsToAdd) {
+            try {
+                await execute(`ALTER TABLE jobs ADD COLUMN ${col.name} ${col.type}`);
+                results.push(`Added ${col.name}`);
+            } catch (error: any) {
+                if (error.message && error.message.includes("Duplicate column name")) {
+                    results.push(`${col.name} exists`);
+                } else {
+                    results.push(`Error ${col.name}: ${error.message}`);
+                }
+            }
+        }
+        return NextResponse.json({ success: true, results });
+    } catch (e: any) {
+        return NextResponse.json({ success: false, error: e.message });
     }
 }

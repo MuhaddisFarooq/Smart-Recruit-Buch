@@ -71,6 +71,7 @@ type JobData = {
     salary_period?: string;
     target_hiring_date?: string;
     internal_notes?: string;
+    attachments?: string; // JSON string
     experience_level?: string;
 };
 
@@ -241,6 +242,8 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
 
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [isAddCandidateOpen, setIsAddCandidateOpen] = useState(false);
+    const [internalNotes, setInternalNotes] = useState("");
+    const [isEditingNotes, setIsEditingNotes] = useState(false);
 
     const fetchJobData = async () => {
         try {
@@ -249,6 +252,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
             if (!resJob.ok) throw new Error("Job not found");
             const jobData = await resJob.json();
             setJob(jobData);
+            setInternalNotes(jobData.internal_notes || "");
 
             // Fetch Applicants
             const resApps = await fetch(`/api/jobs/${resolvedParams.id}/applications`);
@@ -440,13 +444,6 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                             Applicants
                         </TabsTrigger>
                         <TabsTrigger
-                            value="job_details"
-                            className="bg-transparent border-b-2 border-transparent data-[state=active]:border-green-600 data-[state=active]:text-gray-900 text-gray-500 rounded-none px-0 pb-3 text-sm font-semibold hover:text-gray-700"
-                        >
-                            Job details
-                        </TabsTrigger>
-                        {/* Placeholders for other tabs in screenshot */}
-                        <TabsTrigger
                             value="activity"
                             className="bg-transparent border-b-2 border-transparent data-[state=active]:border-green-600 data-[state=active]:text-gray-900 text-gray-500 rounded-none px-0 pb-3 text-sm font-semibold hover:text-gray-700"
                         >
@@ -458,6 +455,13 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                         >
                             Job ad
                         </TabsTrigger>
+                        <TabsTrigger
+                            value="job_details"
+                            className="bg-transparent border-b-2 border-transparent data-[state=active]:border-green-600 data-[state=active]:text-gray-900 text-gray-500 rounded-none px-0 pb-3 text-sm font-semibold hover:text-gray-700"
+                        >
+                            Job details
+                        </TabsTrigger>
+
                         <TabsTrigger value="hiring_process" disabled className="text-gray-400">Hiring process</TabsTrigger>
                     </TabsList>
 
@@ -696,27 +700,33 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                     <textarea
                                         className="w-full min-h-[120px] p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
                                         placeholder="Add additional notes to this job."
-                                        defaultValue={job.internal_notes || ""}
-                                        onBlur={async (e) => {
-                                            if (e.target.value !== job.internal_notes) {
+                                        value={internalNotes}
+                                        onChange={(e) => setInternalNotes(e.target.value)}
+                                        onFocus={() => setIsEditingNotes(true)}
+                                    />
+                                    {isEditingNotes && (
+                                        <div className="flex gap-2 mt-4">
+                                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={async () => {
                                                 try {
-                                                    await fetch(`/api/jobs/${job.id}`, {
+                                                    const res = await fetch(`/api/jobs/${job.id}`, {
                                                         method: "PATCH",
                                                         headers: { "Content-Type": "application/json" },
-                                                        body: JSON.stringify({ internal_notes: e.target.value }),
+                                                        body: JSON.stringify({ internal_notes: internalNotes }),
                                                     });
+                                                    if (!res.ok) throw new Error("Failed to save");
                                                     toast.success("Notes saved");
-                                                    fetchJobData(); // Refresh to update local state
+                                                    setIsEditingNotes(false);
+                                                    fetchJobData();
                                                 } catch (err) {
                                                     toast.error("Failed to save notes");
                                                 }
-                                            }
-                                        }}
-                                    />
-                                    <div className="flex gap-2 mt-4">
-                                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => toast.success("Notes saved")}>Save</Button>
-                                        <Button size="sm" variant="ghost" className="text-gray-600 hover:bg-gray-100">Cancel</Button>
-                                    </div>
+                                            }}>Save</Button>
+                                            <Button size="sm" variant="ghost" className="text-gray-600 hover:bg-gray-100" onClick={() => {
+                                                setInternalNotes(job.internal_notes || "");
+                                                setIsEditingNotes(false);
+                                            }}>Cancel</Button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -730,12 +740,89 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                         <ChevronDown className="h-4 w-4 text-gray-500" />
                                         <h3 className="font-semibold text-gray-900">Attachments</h3>
                                     </div>
-                                    <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-900">
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        id="attachment-upload"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+
+                                            const formData = new FormData();
+                                            formData.append('file', file);
+
+                                            const toastId = toast.loading("Uploading...");
+
+                                            try {
+                                                const res = await fetch('/api/upload', {
+                                                    method: 'POST',
+                                                    body: formData
+                                                });
+                                                const data = await res.json();
+
+                                                if (data.success) {
+                                                    const newAttachment = { name: data.name, url: data.url, date: new Date().toISOString() };
+                                                    const currentAttachments = job.attachments ? JSON.parse(job.attachments) : [];
+                                                    const updatedAttachments = [...currentAttachments, newAttachment];
+
+                                                    await fetch(`/api/jobs/${job.id}`, {
+                                                        method: "PATCH",
+                                                        headers: { "Content-Type": "application/json" },
+                                                        body: JSON.stringify({ attachments: JSON.stringify(updatedAttachments) }),
+                                                    });
+
+                                                    toast.success("Attachment added", { id: toastId });
+                                                    fetchJobData();
+                                                } else {
+                                                    throw new Error(data.error || "Upload failed");
+                                                }
+                                            } catch (err: any) {
+                                                toast.error(err.message || "Failed to upload", { id: toastId });
+                                            }
+                                            // Reset input
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                    <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-900" onClick={(e) => {
+                                        e.stopPropagation();
+                                        document.getElementById('attachment-upload')?.click();
+                                    }}>
                                         <div className="flex items-center gap-1"><span className="text-lg leading-none">+</span> <span className="text-xs">Add</span></div>
                                     </Button>
                                 </div>
                                 <div id="attachments-content" className="p-6">
-                                    <p className="text-sm text-gray-500 italic">There are no attachments yet.</p>
+                                    {job.attachments && JSON.parse(job.attachments).length > 0 ? (
+                                        <div className="space-y-2">
+                                            {JSON.parse(job.attachments).map((att: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                                    <a href={att.url || "#"} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-2">
+                                                        <span className="truncate max-w-[200px]">{att.name}</span>
+                                                    </a>
+                                                    <Button variant="ghost" size="sm" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={async () => {
+                                                        if (confirm("Delete attachment?")) {
+                                                            const currentAttachments = JSON.parse(job.attachments!);
+                                                            const updatedAttachments = currentAttachments.filter((_: any, i: number) => i !== idx);
+                                                            try {
+                                                                await fetch(`/api/jobs/${job.id}`, {
+                                                                    method: "PATCH",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({ attachments: JSON.stringify(updatedAttachments) }),
+                                                                });
+                                                                toast.success("Attachment removed");
+                                                                fetchJobData();
+                                                            } catch (err) {
+                                                                toast.error("Failed to remove attachment");
+                                                            }
+                                                        }
+                                                    }}>
+                                                        <span className="text-xs">✕</span>
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic">There are no attachments yet.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
