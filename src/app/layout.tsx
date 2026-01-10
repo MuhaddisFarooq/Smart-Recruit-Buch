@@ -9,7 +9,7 @@ import { Toaster } from "sonner";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
 
 export const metadata: Metadata = {
-  title: "Buch Hospital Portal",
+  title: "Buch Smart Recruiter",
   description: "A Full Fledge Web Application",
 };
 

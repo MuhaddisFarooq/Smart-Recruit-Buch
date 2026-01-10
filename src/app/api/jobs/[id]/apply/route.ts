@@ -123,7 +123,7 @@ export async function POST(
         // 4. Create Application
         await execute(
             `INSERT INTO job_applications (job_id, user_id, resume_url, message, status, applied_at)
-         VALUES (?, ?, ?, ?, 'Applied', NOW())`,
+         VALUES (?, ?, ?, ?, 'new', NOW())`,
             [jobId, userId, resumeUrl || null, message || null]
         );
 

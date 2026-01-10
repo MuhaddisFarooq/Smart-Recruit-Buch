@@ -1,69 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { format } from "date-fns";
-import {
-    Plus,
-    Search,
-    Eye,
-    Pencil,
-    MoreHorizontal,
-    Loader2,
-    Trash2,
-    Ban,
-    CheckCircle2
-} from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import JobsSearchBar from "@/components/jobs/JobsSearchBar";
+import JobsFiltersRow from "@/components/jobs/JobsFiltersRow";
+import PipelineTableHeader from "@/components/jobs/PipelineTableHeader";
+import JobRow from "@/components/jobs/JobRow";
+import LoadMoreButton from "@/components/jobs/LoadMoreButton";
 
 type Job = {
     id: number;
     job_title: string;
-    type_of_employment: string;
-    department: string;
     location: string;
-    addedBy: string;
-    addedDate: string;
     status: string;
+    recruiter?: string;
+    hiring_manager?: string;
+    addedBy?: string;
+    department?: string;
+    new_count?: number;
+    in_review_count?: number;
+    interview_count?: number;
+    offered_count?: number;
+    hired_count?: number;
 };
 
-export default function JobsListPage() {
-    const { data: session } = useSession();
+export default function JobsPage() {
     const router = useRouter();
+    const [searchQuery, setSearchQuery] = useState("");
+    const [filters, setFilters] = useState<{ [key: string]: string[] }>({});
     const [jobs, setJobs] = useState<Job[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState("");
-
-    const isCandidate = (session?.user as any)?.role === 'candidate';
+    const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 15;
 
     useEffect(() => {
         fetchJobs();
     }, []);
 
     const fetchJobs = async () => {
-        setIsLoading(true);
         try {
             const res = await fetch("/api/jobs");
             if (res.ok) {
@@ -71,240 +47,240 @@ export default function JobsListPage() {
                 setJobs(data);
             }
         } catch (error) {
-            console.error("Failed to fetch jobs", error);
+            console.error("Error fetching jobs:", error);
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     };
 
-    const handleStatusToggle = async (job: Job) => {
-        const newStatus = job.status === "Active" ? "Inactive" : "Active";
+    // Extract unique values for dynamic filters
+    const uniqueLocations = useMemo(() => {
+        const locs = jobs.map(j => j.location).filter(Boolean);
+        return [...new Set(locs)];
+    }, [jobs]);
 
+    const uniqueHiringManagers = useMemo(() => {
+        const managers = jobs.map(j => j.hiring_manager).filter(Boolean) as string[];
+        return [...new Set(managers)];
+    }, [jobs]);
+
+    const uniqueRecruiters = useMemo(() => {
+        const recs = jobs.map(j => j.recruiter || j.addedBy).filter(Boolean) as string[];
+        return [...new Set(recs)];
+    }, [jobs]);
+
+    const uniqueStatuses = useMemo(() => {
+        const statuses = jobs.map(j => j.status).filter(Boolean) as string[];
+        return [...new Set(statuses)];
+    }, [jobs]);
+
+    const uniqueDepartments = useMemo(() => {
+        const depts = jobs.map(j => j.department).filter(Boolean) as string[];
+        return [...new Set(depts)];
+    }, [jobs]);
+
+    // Dynamic filtering
+    const filteredJobs = useMemo(() => {
+        let filtered = [...jobs];
+
+        // Search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(job =>
+                job.job_title?.toLowerCase().includes(query) ||
+                job.location?.toLowerCase().includes(query) ||
+                job.recruiter?.toLowerCase().includes(query) ||
+                job.hiring_manager?.toLowerCase().includes(query) ||
+                job.addedBy?.toLowerCase().includes(query)
+            );
+        }
+
+        // Show jobs filter (Published/Active/etc.)
+        if (filters.show_jobs && filters.show_jobs.length > 0) {
+            filtered = filtered.filter(job => {
+                const status = job.status?.toLowerCase();
+                return filters.show_jobs.some(f => {
+                    if (f === "All") return true;
+                    if (f === "Active" || f === "Published") return status === 'active' || status === 'published';
+                    if (f === "Filled") return status === 'filled';
+                    if (f === "Cancelled") return status === 'cancelled';
+                    if (f === "My Active") return status === 'active';
+                    return true;
+                });
+            });
+        }
+
+        // Location filter (multi-select)
+        if (filters.location && filters.location.length > 0) {
+            filtered = filtered.filter(job =>
+                filters.location.some(loc =>
+                    job.location?.toLowerCase().includes(loc.toLowerCase())
+                )
+            );
+        }
+
+        // Hiring Manager filter (multi-select)
+        if (filters.hiring_manager && filters.hiring_manager.length > 0) {
+            filtered = filtered.filter(job =>
+                filters.hiring_manager.some(hm =>
+                    job.hiring_manager?.toLowerCase() === hm.toLowerCase()
+                )
+            );
+        }
+
+        // Job status filter (multi-select)
+        if (filters.job_status && filters.job_status.length > 0) {
+            filtered = filtered.filter(job =>
+                filters.job_status.some(js =>
+                    job.status?.toLowerCase() === js.toLowerCase()
+                )
+            );
+        }
+
+        // Department filter (multi-select)
+        if (filters.department && filters.department.length > 0) {
+            filtered = filtered.filter(job =>
+                filters.department.some(dept =>
+                    job.department?.toLowerCase() === dept.toLowerCase()
+                )
+            );
+        }
+
+        return filtered;
+    }, [jobs, searchQuery, filters]);
+
+    // Paginated display
+    const displayedJobs = useMemo(() => {
+        return filteredJobs.slice(0, page * PAGE_SIZE);
+    }, [filteredJobs, page]);
+
+    const handleFilterChange = (key: string, values: string[]) => {
+        setFilters({ ...filters, [key]: values });
+        setPage(1); // Reset pagination when filter changes
+    };
+
+    const handleClearAll = () => {
+        setFilters({});
+        setPage(1);
+    };
+
+    const handleLoadMore = () => {
+        setLoadingMore(true);
+        setTimeout(() => {
+            setPage(page + 1);
+            setLoadingMore(false);
+        }, 300);
+    };
+
+    const handleJobClick = (jobId: number) => {
+        router.push(`/jobs/${jobId}`);
+    };
+
+    const handleEdit = (jobId: number) => {
+        router.push(`/jobs/${jobId}/edit`);
+    };
+
+    const handleUnpublish = async (jobId: number) => {
         try {
-            // We need to send the full body because the PUT endpoint expects it.
-            // Ideally we should use PATCH for partial updates, but reusing PUT is faster here.
-            // We use the job object we already have. 
-            // Note: date fields and addedBy are ignored/handled by backend or not needed in body for update usually if backend doesn't overwrite them with null.
-            // Our backend overwrites all fields provided.
-            // Wait, our local 'job' object might check omitted fields?
-            // The list API returns: id, job_title, type_of_employment, department, location, addedBy, addedDate, status.
-            // It MISSES matching fields for PUT: company_description, qualifications, experience, additional_information.
-
-            // IF we use PUT with missing fields, they might be set to undefined/null in DB!
-            // We must fetch the single job first OR update the API to support partials.
-            // Updating API for partials is better, but let's try just patching this locally by fetching first if needed.
-            // OR simpler: Just create a specialized server action or API route.
-            // Actually, let's just fetch the detail first to be safe, then update.
-
-            // Fetch validation:
-            const detailRes = await fetch(`/api/jobs/${job.id}`);
-            if (!detailRes.ok) throw new Error("Failed to fetch job details for update");
-            const fullJob = await detailRes.json();
-
-            const res = await fetch(`/api/jobs/${job.id}`, {
-                method: "PUT",
+            const res = await fetch(`/api/jobs/${jobId}`, {
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...fullJob,
-                    status: newStatus
-                }),
+                body: JSON.stringify({ status: "draft" }),
             });
 
             if (res.ok) {
-                toast.success(`Job marked as ${newStatus}`);
+                toast.success("Job unpublished");
                 fetchJobs();
             } else {
-                toast.error("Failed to update status");
+                toast.error("Failed to unpublish job");
             }
         } catch (error) {
-            console.error("Status update error", error);
-            toast.error("Error updating status");
+            toast.error("An error occurred");
         }
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (jobId: number) => {
         if (!confirm("Are you sure you want to delete this job?")) return;
 
         try {
-            const res = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+            const res = await fetch(`/api/jobs/${jobId}`, {
+                method: "DELETE",
+            });
+
             if (res.ok) {
-                toast.success("Job deleted successfully");
-                fetchJobs(); // Refresh list
+                toast.success("Job deleted");
+                fetchJobs();
             } else {
                 toast.error("Failed to delete job");
             }
         } catch (error) {
-            console.error("Delete error", error);
-            toast.error("Error deleting job");
+            toast.error("An error occurred");
         }
     };
 
-    const filteredJobs = jobs.filter((job) =>
-        job.job_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.department?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#238740]"></div>
+            </div>
+        );
+    }
 
-    const handleRowClick = (id: number) => {
-        if (isCandidate) {
-            router.push(`/jobs/${id}`);
-        }
-    };
+    const hasMore = displayedJobs.length < filteredJobs.length;
 
     return (
-        <div className="container mx-auto py-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Jobs</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Manage and view all job openings.
-                    </p>
+        <div className="max-w-[1100px] mx-auto">
+            {/* Main Card */}
+            <div className="bg-white border border-[#E6E6E6] rounded-lg shadow-sm">
+                {/* Search & Filters */}
+                <div className="p-5 pb-4">
+                    <JobsSearchBar
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                    />
+                    <JobsFiltersRow
+                        filters={filters}
+                        onFilterChange={handleFilterChange}
+                        onClearAll={handleClearAll}
+                        locations={uniqueLocations}
+                        hiringManagers={uniqueHiringManagers}
+                        recruiters={uniqueRecruiters}
+                        statuses={uniqueStatuses}
+                        departments={uniqueDepartments}
+                    />
                 </div>
-                {!isCandidate && (
-                    <Link href="/jobs/add">
-                        <Button className="gap-2">
-                            <Plus className="w-4 h-4" />
-                            Add New Job
-                        </Button>
-                    </Link>
+
+                {/* Table */}
+                <div>
+                    <PipelineTableHeader totalJobs={filteredJobs.length} />
+
+                    {displayedJobs.length === 0 ? (
+                        <div className="py-12 text-center text-[#666] text-sm">
+                            {jobs.length === 0 ? (
+                                <>No jobs found. <button onClick={() => router.push('/jobs/add')} className="text-[#238740] hover:underline">Create your first job</button></>
+                            ) : (
+                                <>No jobs match your filters. <button onClick={handleClearAll} className="text-[#238740] hover:underline">Clear filters</button></>
+                            )}
+                        </div>
+                    ) : (
+                        displayedJobs.map((job) => (
+                            <JobRow
+                                key={job.id}
+                                job={job}
+                                onClick={() => handleJobClick(job.id)}
+                                onEdit={handleEdit}
+                                onUnpublish={handleUnpublish}
+                                onDelete={handleDelete}
+                            />
+                        ))
+                    )}
+                </div>
+
+                {/* Load More */}
+                {hasMore && (
+                    <LoadMoreButton onClick={handleLoadMore} loading={loadingMore} />
                 )}
             </div>
-
-            <Card className="border-none shadow-md bg-card">
-                <CardHeader className="pb-4">
-                    <div className="flex items-center gap-2">
-                        <div className="relative flex-1 max-w-sm">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="search"
-                                placeholder="Search by title or department..."
-                                className="pl-9"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-muted/50">
-                                    <TableHead className="font-semibold text-foreground">Job Title</TableHead>
-                                    <TableHead className="font-semibold text-foreground">Type</TableHead>
-                                    <TableHead className="font-semibold text-foreground">Department</TableHead>
-                                    <TableHead className="font-semibold text-foreground">Location</TableHead>
-                                    <TableHead className="font-semibold text-foreground">Status</TableHead>
-                                    {!isCandidate && <TableHead className="font-semibold text-foreground text-right w-[100px]">Actions</TableHead>}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                    <TableRow>
-                                        <TableCell colSpan={isCandidate ? 5 : 6} className="h-24 text-center">
-                                            <div className="flex justify-center items-center gap-2 text-muted-foreground">
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                Loading jobs...
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : filteredJobs.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={isCandidate ? 5 : 6} className="h-24 text-center text-muted-foreground">
-                                            No jobs found.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    filteredJobs.map((job) => (
-                                        <TableRow
-                                            key={job.id}
-                                            className={`hover:bg-muted/5 ${isCandidate ? 'cursor-pointer' : ''}`}
-                                            onClick={() => handleRowClick(job.id)}
-                                        >
-                                            <TableCell className="font-medium">{job.job_title}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="secondary" className="font-normal border-transparent bg-primary/10 text-primary hover:bg-primary/20">
-                                                    {job.type_of_employment || "N/A"}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>{job.department || "—"}</TableCell>
-                                            <TableCell className="text-muted-foreground">{job.location || "—"}</TableCell>
-                                            <TableCell>
-                                                <Badge
-                                                    className={`text-white hover:opacity-80 ${job.status === 'Inactive' ? 'bg-destructive' : 'bg-[#b9d36c]'}`}
-                                                    style={job.status !== 'Inactive' ? { backgroundColor: '#b9d36c' } : {}}
-                                                >
-                                                    {job.status || "Active"}
-                                                </Badge>
-                                            </TableCell>
-                                            {!isCandidate && (
-                                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                                <span className="sr-only">Open menu</span>
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-
-                                                            <Link href={`/jobs/${job.id}`}>
-                                                                <DropdownMenuItem className="cursor-pointer">
-                                                                    <Eye className="mr-2 h-4 w-4" />
-                                                                    View Details
-                                                                </DropdownMenuItem>
-                                                            </Link>
-
-                                                            {/* Assuming we might want a separate Edit page, or re-use Add page logic. 
-                                For now, I'll point to an edit route. */}
-                                                            <Link href={`/jobs/${job.id}/edit`}>
-                                                                <DropdownMenuItem className="cursor-pointer">
-                                                                    <Pencil className="mr-2 h-4 w-4" />
-                                                                    Edit Job
-                                                                </DropdownMenuItem>
-                                                            </Link>
-
-                                                            <DropdownMenuItem
-                                                                className="cursor-pointer"
-                                                                onClick={() => handleStatusToggle(job)}
-                                                            >
-                                                                {job.status === 'Inactive' ? (
-                                                                    <>
-                                                                        <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
-                                                                        Mark as Active
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Ban className="mr-2 h-4 w-4 text-orange-500" />
-                                                                        Mark as Inactive
-                                                                    </>
-                                                                )}
-                                                            </DropdownMenuItem>
-
-                                                            <DropdownMenuSeparator />
-
-
-
-                                                            <DropdownMenuItem
-                                                                className="cursor-pointer text-destructive focus:text-destructive"
-                                                                onClick={() => handleDelete(job.id)}
-                                                            >
-                                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                                Delete Job
-                                                            </DropdownMenuItem>
-
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </TableCell>
-                                            )}
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }

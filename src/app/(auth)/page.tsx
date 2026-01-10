@@ -49,12 +49,22 @@ function LoginForm() {
         redirect: false,
         email,
         password,
-        callbackUrl: "/dashboard",
       });
 
       if (res?.ok) {
         toast.success("Login successful!");
-        router.push("/dashboard");
+
+        // Fetch session to get user role
+        const sessionRes = await fetch("/api/auth/session");
+        const session = await sessionRes.json();
+        const userRole = (session?.user?.role || "").toLowerCase();
+
+        // Redirect based on role
+        if (userRole === "candidate") {
+          router.push("/candidate/jobs");
+        } else {
+          router.push("/dashboard");
+        }
       } else {
         toast.error(mapNextAuthError(res?.error ?? undefined));
       }

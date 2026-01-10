@@ -16,10 +16,8 @@ async function maybeCompressImage(
   buffer: Buffer,
   mime: string
 ): Promise<{ out: Buffer; ext: string }> {
-  if (!mime || !mime.startsWith("image/")) {
-    // Not an image: keep original bytes and extension unknown
-    return { out: buffer, ext: path.extname("bin") || ".bin" };
-  }
+  // Not an image: keep original bytes and let caller decide extension
+  return { out: buffer, ext: "" };
 
   // Lazy import sharp — route still works if sharp isn't installed
   let sharpMod: any;

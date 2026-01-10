@@ -1,29 +1,54 @@
-import { AppSidebar } from "@/components/ui/app-sidebar"
-import Header from "@/components/common/Header"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import PageLoader from "@/components/common/PageLoader"
-import PageTransitionLoader from "@/components/common/pageTransitionLoader"
-import { defaultRoles } from "@/lib/constants"
+"use client";
 
+import { useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import TopNav from "@/components/dashboard/TopNav";
 
-export default function layout({children}: {children: React.ReactNode}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "loading") return;
+
+    // If not authenticated, redirect to login
+    if (status === "unauthenticated") {
+      router.push("/login");
+      return;
+    }
+
+    // If user is a candidate, redirect to candidate dashboard
+    const userRole = ((session?.user as any)?.role || "").toLowerCase();
+    if (userRole === "candidate") {
+      router.push("/candidate/jobs");
+      return;
+    }
+  }, [session, status, router]);
+
+  // Show loading while checking auth
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#238740]"></div>
+      </div>
+    );
+  }
+
+  // If candidate, show nothing while redirecting
+  const userRole = ((session?.user as any)?.role || "").toLowerCase();
+  if (userRole === "candidate") {
+    return null;
+  }
+
   return (
-    
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="w-full flex-1 overflow-hidden">
-        
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
-          <PageTransitionLoader />
-          <PageLoader />
-            <Header />
+    <div className="min-h-screen bg-[#FAFAFA]">
+      <TopNav />
+      <main className="pt-16 md:pt-20 px-4 md:px-6 lg:pl-14 lg:pr-6">
+        <div className="max-w-[1200px] mx-auto py-4 md:py-6 px-0 md:px-2">
           {children}
         </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+      </main>
+    </div>
+  );
 }

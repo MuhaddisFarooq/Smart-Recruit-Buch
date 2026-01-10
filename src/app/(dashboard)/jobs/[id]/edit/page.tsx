@@ -1,258 +1,585 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowLeft, Search, Info, Eye, X, Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { Loader2, Briefcase, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import RichTextEditor from "@/components/jobs/RichTextEditor";
 
-type JobFormData = {
+const WORK_LOCATION_OPTIONS = [
+    { value: "on-site", label: "Employees work on-site" },
+    { value: "remote", label: "Employees work remotely" },
+    { value: "hybrid", label: "Employees work in a hybrid mode" },
+];
+
+const LANGUAGES = [
+    "English - English (US)",
+    "English - English (UK)",
+    "Urdu",
+    "Arabic",
+    "French",
+    "German",
+    "Spanish",
+];
+
+const COUNTRIES = [
+    "Afghanistan", "Australia", "Bangladesh", "Canada", "China", "Egypt", "France",
+    "Germany", "India", "Indonesia", "Iran", "Iraq", "Italy", "Japan", "Malaysia",
+    "Mexico", "Netherlands", "Pakistan", "Philippines", "Russia", "Saudi Arabia",
+    "South Africa", "South Korea", "Spain", "Turkey", "UAE", "UK", "USA", "Vietnam"
+];
+
+const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "AED", "SAR"];
+const SALARY_PERIODS = ["Monthly", "Yearly", "Hourly", "Weekly"];
+
+type JobData = {
+    id: number;
     job_title: string;
-    type_of_employment: string;
-    department: string;
     location: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+    work_location_type: string;
+    job_language: string;
     company_description: string;
+    description: string;
     qualifications: string;
-    experience: string;
     additional_information: string;
+    video_url: string;
+    auto_unpublish_date: string;
+    salary_from: string;
+    salary_to: string;
+    currency: string;
+    salary_period: string;
     status: string;
 };
 
-export default function EditJobPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditJobPage() {
     const router = useRouter();
-    const resolvedParams = use(params);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    const params = useParams();
+    const jobId = params.id as string;
 
-    const { register, handleSubmit, setValue, formState: { errors } } = useForm<JobFormData>();
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+
+    const [formData, setFormData] = useState<JobData>({
+        id: 0,
+        job_title: "",
+        location: "",
+        city: "",
+        state: "",
+        postal_code: "",
+        country: "",
+        work_location_type: "on-site",
+        job_language: "English - English (US)",
+        company_description: "",
+        description: "",
+        qualifications: "",
+        additional_information: "",
+        video_url: "",
+        auto_unpublish_date: "",
+        salary_from: "",
+        salary_to: "",
+        currency: "",
+        salary_period: "",
+        status: "draft",
+    });
 
     useEffect(() => {
-        const fetchJob = async () => {
-            try {
-                const res = await fetch(`/api/jobs/${resolvedParams.id}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setValue("job_title", data.job_title);
-                    setValue("type_of_employment", data.type_of_employment);
-                    setValue("department", data.department);
-                    setValue("location", data.location);
-                    setValue("company_description", data.company_description);
-                    setValue("qualifications", data.qualifications);
-                    setValue("experience", data.experience);
-                    setValue("additional_information", data.additional_information);
-                    setValue("status", data.status || "Active");
-                } else {
-                    toast.error("Failed to load job details");
-                }
-            } catch (error) {
-                toast.error("Error loading job details");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchJob();
-    }, [resolvedParams.id, setValue]);
+    }, [jobId]);
 
-    const onSubmit = async (data: JobFormData) => {
-        setIsSubmitting(true);
+    const fetchJob = async () => {
         try {
-            const res = await fetch(`/api/jobs/${resolvedParams.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data),
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Failed to update job");
+            const res = await fetch(`/api/jobs/${jobId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setFormData({ ...formData, ...data });
+            } else {
+                toast.error("Job not found");
+                router.push("/jobs");
             }
-
-            toast.success("Job updated successfully!");
-            router.push("/jobs");
-            router.refresh();
-        } catch (error: any) {
-            toast.error(error.message);
+        } catch (error) {
+            toast.error("Failed to load job");
         } finally {
-            setIsSubmitting(false);
+            setLoading(false);
         }
     };
 
-    if (isLoading) {
+    const updateField = (field: string, value: any) => {
+        setFormData({ ...formData, [field]: value });
+    };
+
+    const handleSave = async (publish = false) => {
+        if (!formData.job_title) {
+            toast.error("Job title is required");
+            return;
+        }
+
+        setSaving(true);
+        try {
+            // If publishing, check if auto_unpublish_date is in the past and clear it
+            let autoUnpublishDate = formData.auto_unpublish_date;
+            if (publish && autoUnpublishDate) {
+                const unpublishDate = new Date(autoUnpublishDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // If the date is in the past or today, clear it to allow republishing
+                if (unpublishDate <= today) {
+                    autoUnpublishDate = "";
+                }
+            }
+
+            const res = await fetch(`/api/jobs/${jobId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ...formData,
+                    auto_unpublish_date: autoUnpublishDate || null,
+                    status: publish ? "active" : formData.status,
+                }),
+            });
+
+            if (res.ok) {
+                toast.success(publish ? "Job published!" : "Job saved");
+                router.push("/jobs");
+            } else {
+                toast.error("Failed to save job");
+            }
+        } catch (error) {
+            toast.error("An error occurred");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
         return (
-            <div className="flex h-[50vh] w-full items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#238740]"></div>
             </div>
         );
     }
 
     return (
-        <div className="container max-w-4xl mx-auto py-8">
-            <div className="flex items-center gap-2 mb-6 text-muted-foreground">
-                <Briefcase className="w-5 h-5" />
-                <span className="text-sm font-medium">Jobs / Edit Job</span>
+        <>
+            <div className="max-w-[960px] mx-auto">
+                {/* Page Title */}
+                <div className="flex items-center gap-2 mb-6">
+                    <h1 className="text-2xl md:text-3xl font-bold text-[#333]">Edit job ad</h1>
+                    <span className="text-sm text-[#999]">(Default)</span>
+                </div>
+
+                {/* Wizard Card */}
+                <div className="bg-white border border-[#E6E6E6] rounded shadow-sm p-6 md:p-8">
+                    {/* Simple Stepper */}
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-[#238740] text-white text-xs flex items-center justify-center">1</div>
+                            <span className="text-sm font-medium text-[#333]">Edit</span>
+                        </div>
+                        <div className="flex-1 h-[2px] bg-[#E6E6E6]" />
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full border-2 border-[#238740] text-[#238740] text-xs flex items-center justify-center">2</div>
+                            <span className="text-sm text-[#666]">Advertise</span>
+                        </div>
+                    </div>
+
+                    {/* Company Banner */}
+                    <div className="mb-6 rounded overflow-hidden border border-[#E6E6E6]">
+                        <Image
+                            src="/huge.jpg"
+                            alt="Company Banner"
+                            width={800}
+                            height={120}
+                            className="w-full h-28 object-cover"
+                        />
+                    </div>
+
+                    {/* Job Title */}
+                    <div className="mb-4">
+                        <label className="block text-sm text-[#238740] mb-1">
+                            Job Title<span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.job_title || ""}
+                            onChange={(e) => updateField("job_title", e.target.value)}
+                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                        />
+                    </div>
+
+                    {/* Location Section */}
+                    <div className="mb-4">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="text-sm text-[#238740]">Location<span className="text-red-500">*</span></label>
+                            <button className="text-xs text-[#238740] hover:underline flex items-center gap-1">
+                                <span>Fill with Google</span>
+                            </button>
+                        </div>
+                        <p className="text-xs text-[#666] mb-2">Street address*</p>
+                        <input
+                            type="text"
+                            value={formData.location || ""}
+                            onChange={(e) => updateField("location", e.target.value)}
+                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] mb-3"
+                        />
+
+                        <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div>
+                                <label className="block text-xs text-[#238740] mb-1">City*</label>
+                                <input
+                                    type="text"
+                                    value={formData.city || ""}
+                                    onChange={(e) => updateField("city", e.target.value)}
+                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-[#666] mb-1">State or Province</label>
+                                <input
+                                    type="text"
+                                    value={formData.state || ""}
+                                    onChange={(e) => updateField("state", e.target.value)}
+                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs text-[#666] mb-1">Postal Code</label>
+                                <input
+                                    type="text"
+                                    value={formData.postal_code || ""}
+                                    onChange={(e) => updateField("postal_code", e.target.value)}
+                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-[#238740] mb-1">Country*</label>
+                                <div className="relative">
+                                    <select
+                                        value={formData.country || ""}
+                                        onChange={(e) => updateField("country", e.target.value)}
+                                        className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white appearance-none"
+                                    >
+                                        <option value="">Select country</option>
+                                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    {formData.country && (
+                                        <button
+                                            onClick={() => updateField("country", "")}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] hover:text-[#666]"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Work Location Type */}
+                    <div className="mb-4">
+                        <label className="block text-sm text-[#238740] mb-2">
+                            Work location type<span className="text-red-500">*</span>
+                        </label>
+                        <div className="space-y-2">
+                            {WORK_LOCATION_OPTIONS.map((option) => (
+                                <label key={option.value} className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="work_location_type"
+                                        value={option.value}
+                                        checked={formData.work_location_type === option.value}
+                                        onChange={(e) => updateField("work_location_type", e.target.value)}
+                                        className="w-4 h-4 accent-[#238740]"
+                                    />
+                                    <span className="text-sm text-[#333]">{option.label}</span>
+                                    <Info className="w-3 h-3 text-[#999]" />
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Job Ad Language */}
+                    <div className="mb-6">
+                        <label className="block text-sm text-[#238740] mb-1">
+                            Job Ad Language<span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                            <select
+                                value={formData.job_language || "English - English (US)"}
+                                onChange={(e) => updateField("job_language", e.target.value)}
+                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white appearance-none"
+                            >
+                                {LANGUAGES.map((lang) => (
+                                    <option key={lang} value={lang}>{lang}</option>
+                                ))}
+                            </select>
+                            {formData.job_language && (
+                                <button
+                                    onClick={() => updateField("job_language", "")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] hover:text-[#666]"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Rich Text Editors */}
+                    <RichTextEditor
+                        label="Company Description"
+                        value={formData.company_description || ""}
+                        onChange={(value) => updateField("company_description", value)}
+                        placeholder="Describe your company..."
+                    />
+
+                    <RichTextEditor
+                        label="Job Description"
+                        value={formData.description || ""}
+                        onChange={(value) => updateField("description", value)}
+                        placeholder="Describe the responsibilities and day to day of the job"
+                    />
+
+                    <RichTextEditor
+                        label="Qualifications"
+                        value={formData.qualifications || ""}
+                        onChange={(value) => updateField("qualifications", value)}
+                        placeholder="Describe the requirements and skills needed for the job"
+                    />
+
+                    <RichTextEditor
+                        label="Additional Information"
+                        value={formData.additional_information || ""}
+                        onChange={(value) => updateField("additional_information", value)}
+                        placeholder="Add any additional information..."
+                    />
+
+                    {/* Add Videos */}
+                    <div className="mb-4">
+                        <label className="block text-sm text-[#333] mb-1">Add Videos</label>
+                        <input
+                            type="text"
+                            value={formData.video_url || ""}
+                            onChange={(e) => updateField("video_url", e.target.value)}
+                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                            placeholder="Youtube, Vimeo or Digi-Me video"
+                        />
+                    </div>
+
+                    {/* Auto Unpublish */}
+                    <div className="mb-6">
+                        <label className="block text-sm text-[#238740] mb-1">Automatically Unpublish Job</label>
+                        <div className="relative">
+                            <input
+                                type="date"
+                                value={formData.auto_unpublish_date || ""}
+                                onChange={(e) => updateField("auto_unpublish_date", e.target.value)}
+                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Compensation */}
+                    <div className="mb-6">
+                        <h3 className="text-sm font-medium text-[#238740] mb-2">Compensation</h3>
+                        <div className="flex items-center gap-2 text-xs text-[#666] mb-4">
+                            <Info className="w-3 h-3" />
+                            <span>To keep the compensation private, leave the compensation fields empty.</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-xs text-[#238740] mb-1">From</label>
+                                <input
+                                    type="text"
+                                    value={formData.salary_from || ""}
+                                    onChange={(e) => updateField("salary_from", e.target.value)}
+                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                                    placeholder="Type value"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-[#238740] mb-1">To</label>
+                                <input
+                                    type="text"
+                                    value={formData.salary_to || ""}
+                                    onChange={(e) => updateField("salary_to", e.target.value)}
+                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                                    placeholder="Type value"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs text-[#238740] mb-1">Currency</label>
+                                <select
+                                    value={formData.currency || ""}
+                                    onChange={(e) => updateField("currency", e.target.value)}
+                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white"
+                                >
+                                    <option value="">Please select</option>
+                                    {CURRENCIES.map((curr) => (
+                                        <option key={curr} value={curr}>{curr}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-[#238740] mb-1">Salary Period</label>
+                                <select
+                                    value={formData.salary_period || ""}
+                                    onChange={(e) => updateField("salary_period", e.target.value)}
+                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white"
+                                >
+                                    <option value="">Please select</option>
+                                    {SALARY_PERIODS.map((period) => (
+                                        <option key={period} value={period}>{period}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div className="flex items-center gap-3 pt-4 border-t border-[#E6E6E6]">
+                        <button
+                            onClick={() => handleSave(true)}
+                            disabled={saving}
+                            className="px-5 py-2 bg-[#238740] text-white text-sm font-medium rounded hover:bg-[#1d7235] transition-colors disabled:opacity-50"
+                        >
+                            {saving ? "Saving..." : "Publish"}
+                        </button>
+                        <button
+                            onClick={() => handleSave(false)}
+                            disabled={saving}
+                            className="px-5 py-2 border border-[#238740] text-[#238740] text-sm font-medium rounded hover:bg-[#238740]/5 transition-colors disabled:opacity-50"
+                        >
+                            Save
+                        </button>
+                        <button
+                            onClick={() => setShowPreview(true)}
+                            className="flex items-center gap-2 text-sm text-[#666] hover:text-[#333]"
+                        >
+                            <Eye className="w-4 h-4" />
+                            Preview
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <Card className="border-none shadow-md bg-card">
-                <CardHeader className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <Pencil className="w-5 h-5 text-primary" />
-                        <CardTitle className="text-2xl font-bold tracking-tight">Edit Job Details</CardTitle>
+            {/* Preview Modal */}
+            {showPreview && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E6E6E6]">
+                            <h3 className="text-lg font-medium text-[#333]">{formData.job_title || "Job Title"}</h3>
+                            <button onClick={() => setShowPreview(false)} className="text-[#999] hover:text-[#666]">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex">
+                            {/* Left Content */}
+                            <div className="flex-1 p-6">
+                                {/* Banner */}
+                                <Image
+                                    src="/huge.jpg"
+                                    alt="Company Banner"
+                                    width={600}
+                                    height={100}
+                                    className="w-full h-24 object-cover rounded mb-4"
+                                />
+
+                                {/* Location */}
+                                <p className="text-sm text-[#666] mb-4">
+                                    {[formData.location, formData.city, formData.state, formData.country].filter(Boolean).join(", ") || "Location not specified"}
+                                </p>
+
+                                {/* Company Description */}
+                                {formData.company_description && (
+                                    <div className="mb-4">
+                                        <h4 className="text-base font-medium text-[#333] mb-2">Company Description</h4>
+                                        <p className="text-sm text-[#666] whitespace-pre-wrap">{formData.company_description}</p>
+                                    </div>
+                                )}
+
+                                {/* Job Description */}
+                                {formData.description && (
+                                    <div className="mb-4">
+                                        <h4 className="text-base font-medium text-[#333] mb-2">Job Description</h4>
+                                        <p className="text-sm text-[#666] whitespace-pre-wrap">{formData.description}</p>
+                                    </div>
+                                )}
+
+                                {/* Qualifications */}
+                                {formData.qualifications && (
+                                    <div className="mb-4">
+                                        <h4 className="text-base font-medium text-[#333] mb-2">Qualifications</h4>
+                                        <p className="text-sm text-[#666] whitespace-pre-wrap">{formData.qualifications}</p>
+                                    </div>
+                                )}
+
+                                {/* Additional Information */}
+                                {formData.additional_information && (
+                                    <div className="mb-4">
+                                        <h4 className="text-base font-medium text-[#333] mb-2">Additional Information</h4>
+                                        <p className="text-sm text-[#666] whitespace-pre-wrap">{formData.additional_information}</p>
+                                    </div>
+                                )}
+
+                                {/* Apply Button */}
+                                <div className="mt-6">
+                                    <button className="w-full py-3 bg-[#238740] text-white font-medium rounded hover:bg-[#1d7235]">
+                                        I'm interested
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Right Sidebar */}
+                            <div className="w-64 bg-[#FAFAFA] p-4 border-l border-[#E6E6E6]">
+                                <button className="w-full py-2 bg-[#238740] text-white text-sm font-medium rounded mb-2">
+                                    I'm interested
+                                </button>
+                                <button className="w-full py-2 border border-[#D1D1D1] text-[#666] text-sm rounded mb-6">
+                                    Refer a friend
+                                </button>
+
+                                <div className="mb-4">
+                                    <p className="text-xs text-[#999] mb-2">Posted by</p>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-[#238740] flex items-center justify-center text-white text-xs">KR</div>
+                                        <span className="text-sm text-[#333]">Kamran Rao</span>
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <p className="text-xs text-[#999] mb-2">Share this job</p>
+                                    <div className="flex gap-2">
+                                        <div className="w-8 h-8 border border-[#D1D1D1] rounded flex items-center justify-center text-[#666] cursor-pointer hover:border-[#999]">f</div>
+                                        <div className="w-8 h-8 border border-[#D1D1D1] rounded flex items-center justify-center text-[#666] cursor-pointer hover:border-[#999]">in</div>
+                                        <div className="w-8 h-8 border border-[#D1D1D1] rounded flex items-center justify-center text-[#666] cursor-pointer hover:border-[#999]">X</div>
+                                        <div className="w-8 h-8 border border-[#D1D1D1] rounded flex items-center justify-center text-[#666] cursor-pointer hover:border-[#999]">✉</div>
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-[#999] mt-6">
+                                    Powered by <span className="text-[#333]">Smart</span><span className="text-[#238740]">Recruiters</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <CardDescription>
-                        Update the job information below. Changes will be tracked.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-
-                        {/* Basic Info Section */}
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-foreground">Basic Information</h3>
-                            <Separator />
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="job_title">Job Title <span className="text-destructive">*</span></Label>
-                                    <Input
-                                        id="job_title"
-                                        placeholder="e.g. Senior Software Engineer"
-                                        {...register("job_title", { required: "Job title is required" })}
-                                    />
-                                    {errors.job_title && <p className="text-sm text-destructive">{errors.job_title.message}</p>}
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="type_of_employment">Type of Employment</Label>
-                                    <Select onValueChange={(val) => setValue("type_of_employment", val)} defaultValue={undefined}>
-                                        {/* Note: We need to handle default value correctly with react-hook-form, 
-                          but setValue in useEffect handles the initial state. 
-                          The Select component from shadcn is controlled via onValueChange. 
-                          Ideally we bind the value prop to watch('type_of_employment'), but 
-                          for simplicity relying on setValue usually works if SelectValue is updated.
-                          A safe bet is just using the browser native select or complex controller if issues arise,
-                          but here we will try to make it work.
-                      */}
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select Type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Full-Time">Full-Time</SelectItem>
-                                            <SelectItem value="Part-Time">Part-Time</SelectItem>
-                                            <SelectItem value="Contractual">Contractual</SelectItem>
-                                            <SelectItem value="Internship">Internship</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="department">Department</Label>
-                                    <Input
-                                        id="department"
-                                        placeholder="e.g. Engineering"
-                                        {...register("department")}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="location">Location</Label>
-                                    <Input
-                                        id="location"
-                                        placeholder="e.g. New York, Remote"
-                                        {...register("location")}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="status">Status</Label>
-                                    <Select onValueChange={(val) => setValue("status", val)} defaultValue="Active">
-                                        {/* Ideally bind to watch('status') or allow defaultValue from fetched data. 
-                          Since we use setValue in useEffect, we might need a key or controlled component to update UI nicely if initial load is slow.
-                          However, shadcn Select usually updates if key changes or we accept it as uncontrolled with default.
-                          Better: Use Controller or key. Let's try key approach if needed, but standard Select often works if setValue is called effectively.
-                      */}
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select Status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Active">Active</SelectItem>
-                                            <SelectItem value="Inactive">Inactive</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Detailed Info Section */}
-                        <div className="space-y-4 pt-4">
-                            <h3 className="text-lg font-semibold text-foreground">Detailed Description</h3>
-                            <Separator />
-
-                            <div className="space-y-2">
-                                <Label htmlFor="company_description">Company Description</Label>
-                                <Textarea
-                                    id="company_description"
-                                    placeholder="Brief description about the company or the team..."
-                                    className="min-h-[100px]"
-                                    {...register("company_description")}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="qualifications">Qualifications</Label>
-                                <Textarea
-                                    id="qualifications"
-                                    placeholder="e.g. Bachelor's Degree in Computer Science..."
-                                    className="min-h-[100px]"
-                                    {...register("qualifications")}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="experience">Experience</Label>
-                                <Textarea
-                                    id="experience"
-                                    placeholder="e.g. 3-5 years of industry experience..."
-                                    className="min-h-[80px]"
-                                    {...register("experience")}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="additional_information">Additional Information</Label>
-                                <Textarea
-                                    id="additional_information"
-                                    placeholder="Any extra details, benefits, or instructions..."
-                                    className="min-h-[80px]"
-                                    {...register("additional_information")}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="pt-4 flex justify-end gap-2">
-                            <Button variant="outline" type="button" onClick={() => router.back()}>Cancel</Button>
-                            <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
-                                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                                Update Job
-                            </Button>
-                        </div>
-
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                </div>
+            )}
+        </>
     );
 }
