@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
 
         const jobs = await query(`
             SELECT j.*, 
+                (SELECT u.name FROM job_hiring_team ht JOIN users u ON ht.user_id = u.id WHERE ht.job_id = j.id AND ht.role = 'Recruiter' LIMIT 1) as recruiter,
+                (SELECT u.name FROM job_hiring_team ht JOIN users u ON ht.user_id = u.id WHERE ht.job_id = j.id AND ht.role = 'Hiring Manager' LIMIT 1) as hiring_manager,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'new') as new_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'reviewed') as in_review_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'interview') as interview_count,

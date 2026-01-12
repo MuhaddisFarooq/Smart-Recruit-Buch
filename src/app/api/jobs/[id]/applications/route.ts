@@ -18,7 +18,7 @@ export async function GET(
                 ja.user_id,
                 ja.status,
                 ja.applied_at,
-                ja.resume_path as resume_url,
+                COALESCE(ja.resume_path, ja.resume_url, u.resume_url) as resume_url,
                 u.name,
                 u.email,
                 u.phone,
@@ -27,13 +27,15 @@ export async function GET(
                 (
                     SELECT title 
                     FROM candidate_experience 
-                    WHERE user_id = u.id AND is_current = 1 
+                    WHERE user_id = u.id 
+                    ORDER BY is_current DESC, start_date DESC 
                     LIMIT 1
                 ) as current_title,
                 (
                     SELECT company 
                     FROM candidate_experience 
-                    WHERE user_id = u.id AND is_current = 1 
+                    WHERE user_id = u.id 
+                    ORDER BY is_current DESC, start_date DESC 
                     LIMIT 1
                 ) as current_company
             FROM job_applications ja

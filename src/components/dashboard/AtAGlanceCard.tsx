@@ -1,17 +1,39 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 type StatItem = {
     value: string | number;
     label: string;
 };
 
-const stats: StatItem[] = [
-    { value: 61, label: "ACTIVE JOBS" },
-    { value: "17,579", label: "TOTAL CANDIDATES" },
-    { value: "5,097", label: "NEW CANDIDATES" },
-];
-
 export default function AtAGlanceCard() {
+    const [stats, setStats] = useState<StatItem[]>([
+        { value: "-", label: "ACTIVE JOBS" },
+        { value: "-", label: "TOTAL CANDIDATES" },
+        { value: "-", label: "NEW CANDIDATES" },
+    ]);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await fetch("/api/dashboard/stats");
+                if (res.ok) {
+                    const data = await res.json();
+                    setStats([
+                        { value: data.activeJobs.toLocaleString(), label: "ACTIVE JOBS" },
+                        { value: data.totalCandidates.toLocaleString(), label: "TOTAL CANDIDATES" },
+                        { value: data.newCandidates.toLocaleString(), label: "NEW CANDIDATES" },
+                    ]);
+                }
+            } catch (error) {
+                console.error("Failed to fetch dashboard stats", error);
+            }
+        };
+
+        fetchStats();
+    }, []);
+
     return (
         <div className="bg-white border border-[#E6E6E6] rounded shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
             {/* Header */}

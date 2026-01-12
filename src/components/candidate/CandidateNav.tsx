@@ -1,17 +1,69 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Search, Bell, User, LogOut, FileText } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
+import NotificationBell from "@/components/ui/NotificationBell";
 
 export default function CandidateNav() {
     const pathname = usePathname();
     const { data: session } = useSession();
+    const router = useRouter();
     const [profileOpen, setProfileOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [allJobs, setAllJobs] = useState<any[]>([]);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const searchRef = useRef<HTMLDivElement>(null);
+
+    // Fetch jobs once for search
+    useEffect(() => {
+        fetch("/api/jobs")
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    const activeJobs = data.filter((job: any) =>
+                        job.status?.toLowerCase() === 'active' || job.status?.toLowerCase() === 'published'
+                    );
+                    setAllJobs(activeJobs);
+                }
+            })
+            .catch(err => console.error("Failed to fetch jobs for search", err));
+    }, []);
+
+    // Filter jobs on type
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            return;
+        }
+
+        const query = searchQuery.toLowerCase();
+        const results = allJobs.filter(job =>
+            job.job_title?.toLowerCase().includes(query) ||
+            job.company_description?.toLowerCase().includes(query)
+        ).slice(0, 5); // Limit to 5 results
+
+        setSearchResults(results);
+        setSearchOpen(true);
+    }, [searchQuery, allJobs]);
+
+    // Close search on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+                setSearchOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -68,19 +120,40 @@ export default function CandidateNav() {
             <div className="flex-1" />
 
             {/* Search */}
-            <div className="relative mr-4">
+            <div className="relative mr-4" ref={searchRef}>
                 <input
                     type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => { if (searchQuery) setSearchOpen(true); }}
                     placeholder="Search jobs..."
                     className="w-64 h-9 px-4 pr-10 text-sm border border-[#E6E6E6] rounded-full bg-[#F5F5F5] focus:outline-none focus:border-[#238740] focus:bg-white"
                 />
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" />
+
+                {/* Search Results Dropdown */}
+                {searchOpen && searchResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-[#E6E6E6] overflow-hidden z-50">
+                        {searchResults.map(job => (
+                            <div
+                                key={job.id}
+                                onClick={() => {
+                                    router.push(`/candidate/jobs/${job.id}`);
+                                    setSearchOpen(false);
+                                    setSearchQuery("");
+                                }}
+                                className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
+                            >
+                                <p className="text-sm font-medium text-gray-900 truncate">{job.job_title}</p>
+                                <p className="text-xs text-gray-500 truncate">{job.city || job.location}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Notifications */}
-            <button className="p-2 text-[#666] hover:text-[#333] mr-2">
-                <Bell className="h-5 w-5" />
-            </button>
+            <NotificationBell />
 
             {/* Profile Dropdown */}
             <div className="relative" ref={profileRef}>

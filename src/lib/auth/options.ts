@@ -177,6 +177,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.id = user.id; // Add ID to token
         token.role = (user as any).role || "user";
         token.group_id = (user as any).group_id ?? null;
         token.perms = (user as any).perms || {};
@@ -184,9 +185,12 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      (session.user as any).role = token.role || "user";
-      (session.user as any).group_id = (token as any).group_id ?? null;
-      (session.user as any).perms = (token as any).perms || {};
+      if (session.user) {
+        (session.user as any).id = token.id || token.sub; // Add ID to session
+        (session.user as any).role = token.role || "user";
+        (session.user as any).group_id = (token as any).group_id ?? null;
+        (session.user as any).perms = (token as any).perms || {};
+      }
       return session;
     },
   },

@@ -3,6 +3,76 @@ import { getServerSession } from "next-auth";
 import { query, execute } from "@/lib/db";
 import { authOptions } from "@/lib/auth/options";
 
+// GET /api/job-applications/[id] - Fetch single application details
+export async function GET(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const { id } = await params;
+
+        // Fetch Application + User + Job details
+        const rows = await query(`
+            SELECT 
+                ja.id as application_id,
+                ja.user_id,
+                ja.status,
+                ja.applied_at,
+                ja.applied_at,
+                COALESCE(ja.resume_path, ja.resume_url, u.resume_url) as resume_url,
+                u.name,
+                u.email,
+                u.phone,
+                u.city,
+                u.country,
+                u.position as current_title,
+                NULL as current_company,
+                j.id as job_id,
+                j.job_title,
+                j.status as job_status
+            FROM job_applications ja
+            JOIN users u ON ja.user_id = u.id
+            JOIN jobs j ON ja.job_id = j.id
+            WHERE ja.id = ?
+        `, [id]);
+
+        if (rows.length === 0) {
+            return NextResponse.json({ error: "Application not found" }, { status: 404 });
+        }
+
+        const app = rows[0];
+
+        // Fetch Experience from separate table using user_id
+        const experience_list = await query(`
+            SELECT * FROM candidate_experience 
+            WHERE user_id = ? 
+            ORDER BY is_current DESC, start_date DESC
+        `, [app.user_id]);
+
+        // Fetch Education from separate table using user_id
+        const education_list = await query(`
+            SELECT * FROM candidate_education 
+            WHERE user_id = ? 
+            ORDER BY is_current DESC, start_date DESC
+        `, [app.user_id]);
+
+        return NextResponse.json({
+            ...app,
+            experience_list: Array.isArray(experience_list) ? experience_list : [],
+            education_list: Array.isArray(education_list) ? education_list : []
+        });
+
+    } catch (error: any) {
+        console.error("Error fetching application:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
 // PATCH /api/job-applications/[id] - Update application status
 export async function PATCH(
     req: NextRequest,
@@ -32,6 +102,46 @@ export async function PATCH(
             "UPDATE job_applications SET status = ? WHERE id = ?",
             [status, id]
         );
+
+        // --- Notification Trigger ---
+        // 1. Get candidate name and job title for the message
+        try {
+            const details = await query(`
+                SELECT u.name as candidate_name, j.job_title 
+                FROM job_applications ja
+                JOIN users u ON ja.user_id = u.id
+                JOIN jobs j ON ja.job_id = j.id
+                WHERE ja.id = ?
+            `, [id]);
+
+            if (details.length > 0) {
+                const { candidate_name, job_title } = details[0];
+                const notificationTitle = `Application Status Updated`;
+                const notificationMessage = `${candidate_name}'s application for ${job_title} was moved to ${status}.`;
+
+                // Notify the recruiter (user_id = 1 for demo)
+                await execute(
+                    `INSERT INTO notifications (user_id, type, title, message, data) VALUES (?, ?, ?, ?, ?)`,
+                    [1, 'info', notificationTitle, notificationMessage, JSON.stringify({ application_id: id, status })]
+                );
+
+                // --- Notify the Candidate ---
+                // We need the candidate's user_id. We can get it from the 'ja' table query above if we select it.
+                // Let's do a quick separate query or update the previous one. updating previous one is cleaner but separate is safer for now to avoid breaking destructuring.
+                const candidateRes = await query("SELECT user_id FROM job_applications WHERE id = ?", [id]);
+                if (candidateRes.length > 0) {
+                    const candidateId = candidateRes[0].user_id;
+                    const candidateMsg = `Your application for ${job_title} has been moved to ${status}.`;
+                    await execute(
+                        `INSERT INTO notifications (user_id, type, title, message, data) VALUES (?, ?, ?, ?, ?)`,
+                        [candidateId, 'info', 'Application Update', candidateMsg, JSON.stringify({ application_id: id, status })]
+                    );
+                }
+            }
+        } catch (filesErr) {
+            console.error("Failed to create notification", filesErr);
+        }
+        // ----------------------------
 
         return NextResponse.json({ success: true, message: "Application updated successfully" });
     } catch (error: any) {

@@ -33,6 +33,7 @@ export default function JobsPage() {
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const PAGE_SIZE = 15;
 
     useEffect(() => {
@@ -79,14 +80,15 @@ export default function JobsPage() {
         return [...new Set(depts)];
     }, [jobs]);
 
-    // Dynamic filtering
+    // Dynamic filtering AND Sorting
     const filteredJobs = useMemo(() => {
-        let filtered = [...jobs];
+        let result = [...jobs];
 
+        // 1. Filtering Logic
         // Search filter
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase().trim();
-            filtered = filtered.filter(job =>
+            result = result.filter(job =>
                 job.job_title?.toLowerCase().includes(query) ||
                 job.location?.toLowerCase().includes(query) ||
                 job.recruiter?.toLowerCase().includes(query) ||
@@ -95,9 +97,9 @@ export default function JobsPage() {
             );
         }
 
-        // Show jobs filter (Published/Active/etc.)
+        // Show jobs filter
         if (filters.show_jobs && filters.show_jobs.length > 0) {
-            filtered = filtered.filter(job => {
+            result = result.filter(job => {
                 const status = job.status?.toLowerCase();
                 return filters.show_jobs.some(f => {
                     if (f === "All") return true;
@@ -110,58 +112,91 @@ export default function JobsPage() {
             });
         }
 
-        // Location filter (multi-select)
+        // Location filter
         if (filters.location && filters.location.length > 0) {
-            filtered = filtered.filter(job =>
+            result = result.filter(job =>
                 filters.location.some(loc =>
                     job.location?.toLowerCase().includes(loc.toLowerCase())
                 )
             );
         }
 
-        // Hiring Manager filter (multi-select)
+        // Hiring Manager filter
         if (filters.hiring_manager && filters.hiring_manager.length > 0) {
-            filtered = filtered.filter(job =>
+            result = result.filter(job =>
                 filters.hiring_manager.some(hm =>
                     job.hiring_manager?.toLowerCase() === hm.toLowerCase()
                 )
             );
         }
 
-        // Job status filter (multi-select)
+        // Job status filter
         if (filters.job_status && filters.job_status.length > 0) {
-            filtered = filtered.filter(job =>
+            result = result.filter(job =>
                 filters.job_status.some(js =>
                     job.status?.toLowerCase() === js.toLowerCase()
                 )
             );
         }
 
-        // Department filter (multi-select)
+        // Department filter
         if (filters.department && filters.department.length > 0) {
-            filtered = filtered.filter(job =>
+            result = result.filter(job =>
                 filters.department.some(dept =>
                     job.department?.toLowerCase() === dept.toLowerCase()
                 )
             );
         }
 
-        return filtered;
-    }, [jobs, searchQuery, filters]);
+        // 2. Sorting Logic
+        if (sortConfig) {
+            result.sort((a, b) => {
+                const aValue = (a as any)[sortConfig.key];
+                const bValue = (b as any)[sortConfig.key];
+
+                if (aValue === bValue) return 0;
+
+                // Handle nulls always at bottom or top consistent? Usually bottom.
+                if (aValue === null || aValue === undefined) return 1;
+                if (bValue === null || bValue === undefined) return -1;
+
+                if (typeof aValue === 'string') {
+                    return sortConfig.direction === 'asc'
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else {
+                    return sortConfig.direction === 'asc'
+                        ? (aValue > bValue ? 1 : -1)
+                        : (aValue < bValue ? 1 : -1);
+                }
+            });
+        }
+
+        return result;
+    }, [jobs, searchQuery, filters, sortConfig]);
 
     // Paginated display
     const displayedJobs = useMemo(() => {
         return filteredJobs.slice(0, page * PAGE_SIZE);
     }, [filteredJobs, page]);
 
+    const handleSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
     const handleFilterChange = (key: string, values: string[]) => {
         setFilters({ ...filters, [key]: values });
-        setPage(1); // Reset pagination when filter changes
+        setPage(1);
     };
 
     const handleClearAll = () => {
         setFilters({});
         setPage(1);
+        setSortConfig(null);
     };
 
     const handleLoadMore = () => {
@@ -252,7 +287,11 @@ export default function JobsPage() {
 
                 {/* Table */}
                 <div>
-                    <PipelineTableHeader totalJobs={filteredJobs.length} />
+                    <PipelineTableHeader
+                        totalJobs={filteredJobs.length}
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                    />
 
                     {displayedJobs.length === 0 ? (
                         <div className="py-12 text-center text-[#666] text-sm">

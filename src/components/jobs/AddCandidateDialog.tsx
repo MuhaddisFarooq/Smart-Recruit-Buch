@@ -85,14 +85,39 @@ export default function AddCandidateDialog({
     const [isAddingExp, setIsAddingExp] = useState(false);
     const [isAddingEdu, setIsAddingEdu] = useState(false);
 
+    // Job Selection State (for Global Add)
+    const [jobs, setJobs] = useState<{ id: number; job_title: string }[]>([]);
+    const [selectedJobId, setSelectedJobId] = useState<string>(jobId ? jobId.toString() : "");
+
     // Reset when opening
     useEffect(() => {
         if (open) {
             setMode("upload");
-            setFormData({ ...INITIAL_FORM, jobId: jobId.toString() });
+            // If explicit jobId provided, use it. Otherwise reset.
+            if (jobId) {
+                setFormData({ ...INITIAL_FORM, jobId: jobId.toString() });
+                setSelectedJobId(jobId.toString());
+            } else {
+                setFormData({ ...INITIAL_FORM, jobId: "" });
+                setSelectedJobId("");
+                fetchJobs(); // Fetch jobs if not provided
+            }
             setActiveTab("brief");
         }
     }, [open, jobId]);
+
+    const fetchJobs = async () => {
+        try {
+            const res = await fetch("/api/jobs"); // Assuming this returns all jobs or logic needs filter
+            if (res.ok) {
+                const data = await res.json();
+                // Filter for active jobs only if needed, but for now take all
+                setJobs(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch jobs");
+        }
+    };
 
     // Handlers
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,10 +332,21 @@ export default function AddCandidateDialog({
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>Job to apply*</Label>
-                                                    <div className="flex items-center justify-between border rounded-md px-3 py-2 bg-gray-50 text-sm">
-                                                        <span>{jobTitle}</span>
-                                                        <Button variant="ghost" size="icon" className="h-4 w-4 hover:bg-transparent"><X className="h-3 w-3" /></Button>
-                                                    </div>
+                                                    {jobId ? (
+                                                        <div className="flex items-center justify-between border rounded-md px-3 py-2 bg-gray-50 text-sm">
+                                                            <span>{jobTitle}</span>
+                                                            <Button variant="ghost" size="icon" className="h-4 w-4 hover:bg-transparent"><X className="h-3 w-3" /></Button>
+                                                        </div>
+                                                    ) : (
+                                                        <Select value={selectedJobId} onValueChange={(v) => { setSelectedJobId(v); setFormData({ ...formData, jobId: v }); }}>
+                                                            <SelectTrigger><SelectValue placeholder="Select a job" /></SelectTrigger>
+                                                            <SelectContent>
+                                                                {jobs.map(j => (
+                                                                    <SelectItem key={j.id} value={j.id.toString()}>{j.job_title}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="space-y-2">

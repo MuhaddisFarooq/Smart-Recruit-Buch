@@ -31,7 +31,6 @@ export default function CandidateJobsPage() {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
-    const [locationFilter, setLocationFilter] = useState("all");
 
     useEffect(() => {
         fetchJobs();
@@ -55,11 +54,7 @@ export default function CandidateJobsPage() {
         }
     };
 
-    // Get unique locations for filter
-    const uniqueLocations = useMemo(() => {
-        const locs = jobs.map(j => j.city || j.location).filter(Boolean);
-        return ["all", ...new Set(locs)];
-    }, [jobs]);
+
 
     // Filter jobs
     const filteredJobs = useMemo(() => {
@@ -74,15 +69,10 @@ export default function CandidateJobsPage() {
             );
         }
 
-        if (locationFilter && locationFilter !== "all") {
-            filtered = filtered.filter(job =>
-                job.city?.toLowerCase() === locationFilter.toLowerCase() ||
-                job.location?.toLowerCase().includes(locationFilter.toLowerCase())
-            );
-        }
+
 
         return filtered;
-    }, [jobs, searchQuery, locationFilter]);
+    }, [jobs, searchQuery]);
 
     const formatDate = (dateStr: string) => {
         if (!dateStr) return "";
@@ -138,22 +128,7 @@ export default function CandidateJobsPage() {
                                 className="h-14 pl-12 text-lg border-0 bg-neutral-50 focus-visible:ring-1 focus-visible:ring-[#b9d36c]"
                             />
                         </div>
-                        <div className="w-full md:w-72 relative">
-                            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-                                <MapPin className="h-5 w-5 text-neutral-400" />
-                            </div>
-                            <Select value={locationFilter} onValueChange={setLocationFilter}>
-                                <SelectTrigger className="h-14 pl-12 text-lg border-0 bg-neutral-50 focus:ring-1 focus:ring-[#b9d36c]">
-                                    <SelectValue placeholder="Location" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Locations</SelectItem>
-                                    {uniqueLocations.filter(l => l !== 'all').map(loc => (
-                                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+
                         <Button
                             className="h-14 px-8 text-lg font-semibold bg-[#b9d36c] hover:bg-[#a3bd5b] text-neutral-900"
                         >
@@ -187,7 +162,7 @@ export default function CandidateJobsPage() {
                             We couldn't find any positions matching your search. Try adjusting your filters or check back later.
                         </p>
                         <Button
-                            onClick={() => { setSearchQuery(""); setLocationFilter("all"); }}
+                            onClick={() => { setSearchQuery(""); }}
                             variant="outline"
                             className="text-[#b9d36c] border-[#b9d36c] hover:bg-[#b9d36c]/10"
                         >

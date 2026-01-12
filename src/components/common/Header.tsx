@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { navMain } from "@/lib/NavMenu"
 import { usePathname } from 'next/navigation'
+import NotificationBell from "@/components/ui/NotificationBell"
 
 export default function Header() {
   const pathname = usePathname()
@@ -75,6 +76,9 @@ export default function Header() {
             )}
           </BreadcrumbList>
         </Breadcrumb>
+      </div>
+      <div className="ml-auto flex items-center gap-4 px-4">
+        <NotificationBell />
       </div>
     </header>
   )

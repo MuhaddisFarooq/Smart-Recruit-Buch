@@ -103,17 +103,30 @@ export async function POST(req: Request) {
 
     // Compress to KB if possible
     const mime = (file as any).type || "";
-    const { out, ext } = await maybeCompressImage(buffer, mime);
-    buffer = out;
+    const processed = await maybeCompressImage(buffer, mime);
+    buffer = processed.out;
+
+    // Determine extension
+    const originalExt = path.extname(file.name);
+    let finalExt = processed.ext || originalExt;
+
+    // Force explicit extensions for known types if missing or generic
+    if (file.type === "application/pdf" && (!finalExt || finalExt === ".bin" || finalExt === ".blob")) {
+      finalExt = ".pdf";
+    } else if ((file.type === "application/msword" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") && (!finalExt || finalExt === ".bin")) {
+      finalExt = file.type === "application/msword" ? ".doc" : ".docx";
+    }
 
     // Ensure destination exists
     const uploadsDir = path.join(process.cwd(), "public", "uploads", folder);
     await fs.mkdir(uploadsDir, { recursive: true });
 
     // Build filename
-    const original = sanitizeName((file as any).name || "image.jpg");
+    const original = sanitizeName((file as any).name || "file"); // Changed default to "file" as it's not always an image
     const base = path.basename(original, path.extname(original));
-    const fname = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${base}${ext || path.extname(original) || ".jpg"}`;
+    const timestamp = Date.now();
+    const safeName = `${Math.random().toString(36).slice(2, 7)}_${base}`;
+    const fname = `${timestamp}_${safeName}${finalExt || ".bin"}`; // Use finalExt, fallback to .bin if still no extension
     const abs = path.join(uploadsDir, fname);
 
     // Save

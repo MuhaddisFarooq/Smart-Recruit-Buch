@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, Bell, User, Menu, X, Settings, Users, Store, Newspaper, MessageCircle, HelpCircle, MessageSquare, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import NotificationBell from "@/components/ui/NotificationBell";
 import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 
@@ -114,9 +115,8 @@ export default function TopNav() {
                     </button>
 
                     {/* Bell */}
-                    <button className="p-2 text-[#666] hover:text-[#333] transition-colors">
-                        <Bell className="h-5 w-5" />
-                    </button>
+                    {/* Bell */}
+                    <NotificationBell />
 
                     {/* Create Job - hidden on mobile */}
                     <Link

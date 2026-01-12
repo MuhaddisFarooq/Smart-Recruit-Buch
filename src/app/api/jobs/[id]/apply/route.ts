@@ -122,10 +122,31 @@ export async function POST(
 
         // 4. Create Application
         await execute(
-            `INSERT INTO job_applications (job_id, user_id, resume_url, message, status, applied_at)
+            `INSERT INTO job_applications (job_id, user_id, resume_path, message, status, applied_at)
          VALUES (?, ?, ?, ?, 'new', NOW())`,
             [jobId, userId, resumeUrl || null, message || null]
         );
+
+        // --- Notification Trigger ---
+        try {
+            // Get Job Title and Candidate Name
+            const jobRows = await query("SELECT job_title FROM jobs WHERE id = ?", [jobId]);
+            const jobTitle = jobRows[0]?.job_title || "Job";
+            const candidateName = personalInfo?.name || (session.user as any).name || "A candidate";
+
+            const notificationTitle = `New Application Received`;
+            const notificationMessage = `${candidateName} applied for ${jobTitle}.`;
+
+            // Notify the recruiter (user_id = 1 for demo)
+            // In a real app, we would fetch the job's recruiter_id from the jobs table
+            await execute(
+                `INSERT INTO notifications (user_id, type, title, message, data) VALUES (?, ?, ?, ?, ?)`,
+                [1, 'success', notificationTitle, notificationMessage, JSON.stringify({ job_id: jobId, candidate_id: userId })]
+            );
+        } catch (notifErr) {
+            console.error("Failed to create notification", notifErr);
+        }
+        // ----------------------------
 
         return NextResponse.json({ success: true, message: "Application submitted successfully" });
 

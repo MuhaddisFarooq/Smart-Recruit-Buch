@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,7 +16,10 @@ import {
     Briefcase,
     Scan,
     User,
-    Info
+    Info,
+    ArrowUp,
+    ArrowDown,
+    ArrowUpDown
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import CandidateProfileDrawer from "@/components/jobs/CandidateProfileDrawer";
@@ -34,6 +37,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import AddCandidateDialog from "@/components/jobs/AddCandidateDialog";
+import HiringTeamManager from "@/components/jobs/HiringTeamManager";
 
 // --- Types ---
 
@@ -113,20 +117,23 @@ const ApplicantRow = ({ app, onStatusChange, onDelete, onView }: { app: Applicat
             </div>
 
             {/* Avatar & Name */}
-            <div className="flex items-center gap-3 w-[25%]">
-                <Avatar className="h-10 w-10 bg-purple-600 text-white">
+            <div
+                className="flex items-center gap-3 w-[25%] cursor-pointer group/name"
+                onClick={() => window.open(`/people/${app.application_id}`, '_blank')}
+            >
+                <Avatar className="h-10 w-10 bg-purple-600 text-white group-hover/name:ring-2 ring-purple-100 transition-all">
                     <AvatarFallback className="bg-purple-600">
                         {app.name ? app.name.substring(0, 2).toUpperCase() : "NA"}
                     </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                    <div className="font-semibold text-gray-900 truncate">{app.name}</div>
+                    <div className="font-semibold text-gray-900 truncate group-hover/name:text-green-700 transition-colors">{app.name}</div>
                     <div className="text-sm text-gray-500 truncate">{app.current_title || "Candidate"}</div>
                 </div>
             </div>
 
-            {/* Actions Menu (Replacing "Sourcing" icon area from screenshot) */}
-            <div className="w-[5%] flex justify-center gap-1">
+            {/* Actions Menu */}
+            <div className="w-[80px] flex justify-center gap-1">
                 <Button
                     variant="ghost"
                     size="icon"
@@ -190,7 +197,7 @@ const ApplicantRow = ({ app, onStatusChange, onDelete, onView }: { app: Applicat
 
 
             {/* Company */}
-            <div className="w-[20%] text-sm text-gray-700 truncate px-2">
+            <div className="flex-1 text-sm text-gray-700 truncate px-2">
                 {app.current_company || "-"}
             </div>
 
@@ -238,6 +245,8 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
 
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
     const [selectedCandidate, setSelectedCandidate] = useState<Application | null>(null);
 
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -271,6 +280,51 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     useEffect(() => {
         fetchJobData();
     }, [resolvedParams.id]);
+
+    const handleSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // Filter AND Sort Applications
+    const filteredApplications = useMemo(() => {
+        let result = applications.filter(app => {
+            if (!searchQuery) return true;
+            const query = searchQuery.toLowerCase();
+            return (
+                app.name?.toLowerCase().includes(query) ||
+                app.email?.toLowerCase().includes(query) ||
+                app.current_company?.toLowerCase().includes(query) ||
+                app.current_title?.toLowerCase().includes(query)
+            );
+        });
+
+        if (sortConfig) {
+            result.sort((a, b) => {
+                const aValue = (a as any)[sortConfig.key];
+                const bValue = (b as any)[sortConfig.key];
+
+                if (aValue === bValue) return 0;
+
+                if (aValue === null || aValue === undefined) return 1;
+                if (bValue === null || bValue === undefined) return -1;
+
+                if (typeof aValue === 'string') {
+                    return sortConfig.direction === 'asc'
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else {
+                    return sortConfig.direction === 'asc'
+                        ? (aValue > bValue ? 1 : -1)
+                        : (aValue < bValue ? 1 : -1);
+                }
+            });
+        }
+        return result;
+    }, [applications, searchQuery, sortConfig]);
 
     const handleStatusChange = async (appId: number, newStatus: string) => {
         try {
@@ -316,9 +370,24 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
 
     if (!job) return <div className="p-8">Job not found</div>;
 
-    const filteredApplications = applications.filter(app =>
-        app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.email.toLowerCase().includes(searchQuery.toLowerCase())
+    // Sort Icon Helper
+    const renderSortIcon = (key: string) => {
+        if (sortConfig?.key === key) {
+            return sortConfig.direction === 'asc'
+                ? <ArrowUp className="h-4 w-4 ml-1" />
+                : <ArrowDown className="h-4 w-4 ml-1" />;
+        }
+        return <ArrowUpDown className="h-4 w-4 ml-1 opacity-0 group-hover:opacity-30" />;
+    };
+
+    const SortableHeader = ({ label, sortKey, className, align = 'left' }: { label: string, sortKey: string, className?: string, align?: 'left' | 'right' }) => (
+        <div
+            className={`flex items-center cursor-pointer group select-none hover:text-gray-700 ${align === 'right' ? 'justify-end' : ''} ${className}`}
+            onClick={() => handleSort(sortKey)}
+        >
+            {label}
+            {renderSortIcon(sortKey)}
+        </div>
     );
 
     return (
@@ -462,7 +531,12 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                             Job details
                         </TabsTrigger>
 
-                        <TabsTrigger value="hiring_process" disabled className="text-gray-400">Hiring process</TabsTrigger>
+                        <TabsTrigger
+                            value="hiring_process"
+                            className="bg-transparent border-b-2 border-transparent data-[state=active]:border-green-600 data-[state=active]:text-gray-900 text-gray-500 rounded-none px-0 pb-3 text-sm font-semibold hover:text-gray-700"
+                        >
+                            Hiring process
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="applicants" className="mt-6">
@@ -500,13 +574,27 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                             {/* Table Header */}
                             <div className="flex items-center bg-white border-b border-gray-200 py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
                                 <div className="mr-4"><input type="checkbox" className="w-4 h-4 rounded border-gray-300" /></div>
-                                <div className="w-[25%]">Applicant</div>
-                                <div className="w-[5%]"></div> {/* Actions placeholder */}
-                                <div className="w-[20%] px-2">Company</div>
-                                <div className="w-[15%] px-2">Location</div>
-                                <div className="w-[15%] px-2">Status</div>
-                                <div className="w-[10%] px-2 text-right">Rating</div>
-                                <div className="w-[10%] px-2 text-right">Application date</div>
+                                <div className="w-[25%]">
+                                    <div className="flex items-center cursor-pointer group select-none hover:text-gray-700" onClick={() => handleSort('name')}>
+                                        Applicant {renderSortIcon('name')}
+                                    </div>
+                                </div>
+                                <div className="w-[80px]"></div> {/* Actions placeholder */}
+                                <div className="flex-1 px-2">
+                                    <SortableHeader label="Company" sortKey="current_company" />
+                                </div>
+                                <div className="w-[15%] px-2">
+                                    <SortableHeader label="Location" sortKey="city" />
+                                </div>
+                                <div className="w-[15%] px-2">
+                                    <SortableHeader label="Status" sortKey="status" />
+                                </div>
+                                <div className="w-[10%] px-2">
+                                    <SortableHeader label="Rating" sortKey="rating" align="right" />
+                                </div>
+                                <div className="w-[10%] px-2">
+                                    <SortableHeader label="Application date" sortKey="applied_at" align="right" />
+                                </div>
                             </div>
 
                             {/* Table Body */}
@@ -519,7 +607,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                         <p>No applicants found.</p>
                                     </div>
                                 ) : (
-                                    filteredApplications.map(app => (
+                                    filteredApplications.map((app: Application) => (
                                         <ApplicantRow
                                             key={app.application_id}
                                             app={app}
@@ -825,6 +913,38 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                     )}
                                 </div>
                             </div>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="hiring_process" className="p-0 space-y-8 mt-6">
+                        {/* Process Visual */}
+                        <div className="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 className="text-sm font-semibold text-gray-700 mb-4">Default hiring process</h3>
+                            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                                <div className="flex-shrink-0 px-4 py-2 bg-blue-50 text-blue-700 rounded text-sm font-medium min-w-[120px] text-center">In-Review</div>
+                                <div className="w-8 h-0.5 bg-gray-200"></div>
+                                <div className="flex-shrink-0 px-4 py-2 bg-gray-50 text-gray-500 rounded text-sm font-medium min-w-[120px] text-center">Interview</div>
+                                <div className="w-8 h-0.5 bg-gray-200"></div>
+                                <div className="flex-shrink-0 px-4 py-2 bg-gray-50 text-gray-500 rounded text-sm font-medium min-w-[120px] text-center">Offer</div>
+                            </div>
+                            <div className="mt-4">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded border border-blue-200 bg-blue-50 text-blue-600">
+                                    <Briefcase className="h-6 w-6" />
+                                </div>
+                                <p className="text-xs text-center mt-1 text-gray-500 w-16">Short-Listed</p>
+                            </div>
+                        </div>
+
+                        {/* Hiring Team */}
+                        <HiringTeamManager jobId={job.id} />
+
+                        {/* Interview Scorecard */}
+                        <div className="bg-white border border-gray-200 rounded-lg p-6 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <ChevronDown className="h-4 w-4 text-gray-500" />
+                                <h3 className="font-semibold text-gray-900">Interview Scorecard</h3>
+                            </div>
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">Add</Button>
                         </div>
                     </TabsContent>
                 </Tabs>

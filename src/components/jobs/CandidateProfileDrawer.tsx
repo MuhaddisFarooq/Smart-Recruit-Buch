@@ -56,6 +56,7 @@ type CandidateProfileDrawerProps = {
         experience_list?: Experience[]; // Updated to accept JSON list
         education_list?: Education[];
     } | null;
+    onStatusChange?: (status: string) => void;
 };
 
 export default function CandidateProfileDrawer({ open, onOpenChange, candidate }: CandidateProfileDrawerProps) {
@@ -227,11 +228,18 @@ export default function CandidateProfileDrawer({ open, onOpenChange, candidate }
                                         {candidate.resume_url ? (
                                             (() => {
                                                 const ext = candidate.resume_url.split('.').pop()?.toLowerCase();
-                                                const isPDF = ext === 'pdf';
+                                                const isBin = ext === 'bin';
+                                                const isPDF = ext === 'pdf' || (isBin && candidate.resume_url.includes('pdf')); // Try to detect if it's meant to be a PDF
+
+                                                // Construct URL: Use Proxy if it's a bin file to force PDF header
+                                                const previewUrl = isBin
+                                                    ? `/api/view-pdf?url=${encodeURIComponent(candidate.resume_url)}`
+                                                    : candidate.resume_url;
+
                                                 const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext || '');
 
-                                                if (isPDF) {
-                                                    return <iframe src={`${candidate.resume_url}#toolbar=0&navpanes=0&view=FitH`} className="w-full h-full border-none" title="Resume PDF" />;
+                                                if (isPDF || isBin) { // Aggressively try to show bin files in iframe if they might be documents
+                                                    return <iframe src={`${previewUrl}#toolbar=0&navpanes=0&view=FitH`} className="w-full h-full border-none" title="Resume PDF" />;
                                                 } else if (isImage) {
                                                     return (
                                                         // eslint-disable-next-line @next/next/no-img-element

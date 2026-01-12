@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { query, execute } from "@/lib/db";
 import { authOptions } from "@/lib/auth/options";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/jobs/[id] - Get a specific job
 export async function GET(
     req: NextRequest,

@@ -80,7 +80,7 @@ function LoginForm() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-1">
           <label htmlFor="email" className="text-sm font-medium">Email</label>
-          <Input id="email" name="email" type="email" placeholder="example@binc.pk" required />
+          <Input id="email" name="email" type="email" placeholder="example@buchhospital.com" required />
         </div>
         <div className="space-y-1">
           <label htmlFor="password" className="text-sm font-medium">Password</label>
