@@ -1,4 +1,5 @@
 
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,7 @@ export type PersonApplication = {
     current_company: string;
     job_id: number;
     job_title: string;
+    avatar_url?: string;
 };
 
 interface PeopleRowProps {
@@ -33,11 +35,12 @@ interface PeopleRowProps {
     onStatusChange: (id: number, status: string) => void;
     onDelete: (id: number) => void;
     onView: (person: PersonApplication) => void;
+    onAddToJob?: (person: PersonApplication) => void;
     checked?: boolean;
     onSelect?: (checked: boolean) => void;
 }
 
-export default function PeopleRow({ person, onStatusChange, onDelete, onView, checked, onSelect }: PeopleRowProps) {
+export default function PeopleRow({ person, onStatusChange, onDelete, onView, onAddToJob, checked, onSelect }: PeopleRowProps) {
     const statusColors: Record<string, string> = {
         new: "text-blue-600 bg-blue-50",
         reviewed: "text-purple-600 bg-purple-50",
@@ -64,12 +67,15 @@ export default function PeopleRow({ person, onStatusChange, onDelete, onView, ch
             {/* Column 1: Avatar + Identity */}
             <div className="flex-1 min-w-0 flex gap-4">
                 <Avatar className="h-12 w-12 bg-[#5d4037] text-white text-lg rounded-full">
+                    {person.avatar_url && <AvatarImage src={person.avatar_url} className="object-cover" />}
                     <AvatarFallback className="bg-[#5d4037]">
                         {person.name ? person.name.substring(0, 2).toUpperCase() : "NA"}
                     </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col gap-0.5">
-                    <div className="font-semibold text-gray-900 text-base">{person.name}</div>
+                    <Link href={`/people/${person.application_id}`} className="font-semibold text-gray-900 text-base hover:text-green-600 hover:underline">
+                        {person.name}
+                    </Link>
                     <div className="text-sm text-gray-600">{person.current_title || "Candidate"}</div>
                     <div className="text-sm text-gray-500">{person.current_company || ""}</div>
                     <div className="text-xs text-gray-400 mt-1">Added to system: {new Date(person.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
@@ -102,25 +108,15 @@ export default function PeopleRow({ person, onStatusChange, onDelete, onView, ch
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem onClick={() => onView(person)}>
-                            View Profile
+                        <DropdownMenuItem onClick={() => onAddToJob?.(person)}>
+                            Add to job
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onStatusChange(person.application_id, 'rejected')}>
-                            Reject
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onStatusChange(person.application_id, 'hired')}>
-                            Hire
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onStatusChange(person.application_id, 'withdrawn')}>
-                            Mark as withdrawn
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onStatusChange(person.application_id, 'interview')}>
-                            Invite to interview
+                        <DropdownMenuItem onClick={() => toast.info("Request consent feature coming soon")}>
+                            Request consent
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600" onClick={() => onDelete(person.application_id)}>
-                            Delete
+                            Delete candidate
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

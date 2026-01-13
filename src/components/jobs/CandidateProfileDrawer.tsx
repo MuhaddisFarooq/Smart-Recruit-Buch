@@ -55,12 +55,13 @@ type CandidateProfileDrawerProps = {
         resume_url: string;
         experience_list?: Experience[]; // Updated to accept JSON list
         education_list?: Education[];
+        avatar_url?: string;
     } | null;
     onStatusChange?: (status: string) => void;
 };
 
 export default function CandidateProfileDrawer({ open, onOpenChange, candidate }: CandidateProfileDrawerProps) {
-    const [viewMode, setViewMode] = useState<"profile" | "resume">("profile");
+    const [viewMode, setViewMode] = useState<"Resume" | "Experience" | "Education">("Resume");
 
     if (!candidate) return null;
 
@@ -83,6 +84,7 @@ export default function CandidateProfileDrawer({ open, onOpenChange, candidate }
 
                     <div className="flex gap-5 w-full pr-8">
                         <Avatar className="h-16 w-16 bg-purple-600 text-white border-2 border-white shadow-sm">
+                            {candidate.avatar_url && <AvatarImage src={candidate.avatar_url} className="object-cover" />}
                             <AvatarFallback className="bg-purple-600 text-xl font-medium">
                                 {candidate.name ? candidate.name.substring(0, 2).toUpperCase() : "NA"}
                             </AvatarFallback>
@@ -135,95 +137,38 @@ export default function CandidateProfileDrawer({ open, onOpenChange, candidate }
                                 >
                                     Overview
                                 </TabsTrigger>
-                                <TabsTrigger
-                                    value="screening"
-                                    className="bg-transparent border-b-2 border-transparent data-[state=active]:border-green-600 data-[state=active]:text-green-700 text-gray-500 rounded-none px-0 pb-3 text-sm font-semibold hover:text-gray-700 transition-none shadow-none"
-                                >
-                                    Screening
-                                </TabsTrigger>
+
                             </TabsList>
                         </div>
 
                         <TabsContent value="overview" className="flex-1 overflow-y-auto p-0 m-0 outline-none">
                             <div className="p-6">
-                                {/* Profile vs Resume Toggle */}
-                                <div className="flex gap-2 mb-6">
+                                {/* Sub-Tabs: Resume / Experience / Education */}
+                                <div className="flex items-center gap-3 mb-6">
                                     <Button
-                                        variant={viewMode === 'profile' ? 'default' : 'outline'}
-                                        onClick={() => setViewMode('profile')}
-                                        className={`gap-2 h-9 text-xs font-semibold uppercase tracking-wide ${viewMode === 'profile' ? 'bg-[#167f39] hover:bg-[#12662d] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-                                    >
-                                        <User className="h-4 w-4" /> Profile
-                                    </Button>
-                                    <Button
-                                        variant={viewMode === 'resume' ? 'default' : 'outline'}
-                                        onClick={() => setViewMode('resume')}
-                                        className={`gap-2 h-9 text-xs font-semibold uppercase tracking-wide ${viewMode === 'resume' ? 'bg-[#167f39] hover:bg-[#12662d] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                                        variant={viewMode === 'Resume' ? 'default' : 'outline'}
+                                        onClick={() => setViewMode('Resume')}
+                                        className={`gap-2 h-9 text-xs font-semibold uppercase tracking-wide ${viewMode === 'Resume' ? 'bg-[#b9d36c] hover:bg-[#a3bd5b] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}
                                     >
                                         <FileText className="h-4 w-4" /> Resume
                                     </Button>
+                                    <Button
+                                        variant={viewMode === 'Experience' ? 'default' : 'outline'}
+                                        onClick={() => setViewMode('Experience')}
+                                        className={`gap-2 h-9 text-xs font-semibold uppercase tracking-wide ${viewMode === 'Experience' ? 'bg-[#b9d36c] hover:bg-[#a3bd5b] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                                    >
+                                        <Building2 className="h-4 w-4" /> Experience
+                                    </Button>
+                                    <Button
+                                        variant={viewMode === 'Education' ? 'default' : 'outline'}
+                                        onClick={() => setViewMode('Education')}
+                                        className={`gap-2 h-9 text-xs font-semibold uppercase tracking-wide ${viewMode === 'Education' ? 'bg-[#b9d36c] hover:bg-[#a3bd5b] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                                    >
+                                        <GraduationCap className="h-4 w-4" /> Education
+                                    </Button>
                                 </div>
 
-                                {viewMode === 'profile' ? (
-                                    <div className="space-y-8 max-w-2xl bg-white p-8 rounded-lg border border-gray-200 shadow-sm">
-                                        {/* Experience Section */}
-                                        <section>
-                                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-5 flex items-center gap-2">
-                                                <Building2 className="h-4 w-4 text-gray-400" />
-                                                Experience
-                                            </h3>
-                                            <div className="space-y-8 relative pl-2 border-l-2 border-gray-100 ml-2">
-                                                {candidate.experience_list && candidate.experience_list.length > 0 ? (
-                                                    candidate.experience_list.map((exp, i) => (
-                                                        <div key={i} className="relative pl-6">
-                                                            <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 border-gray-200 bg-white"></div>
-                                                            <div className="flex justify-between items-start mb-1">
-                                                                <h4 className="text-base font-bold text-gray-900">{exp.title}</h4>
-                                                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
-                                                                    {formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-sm font-medium text-gray-700 mb-1">{exp.company}</div>
-                                                            {exp.location && <div className="text-xs text-gray-500 mb-2">{exp.location}</div>}
-                                                            {exp.description && <div className="text-sm text-gray-600 mt-2 leading-relaxed">{exp.description}</div>}
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="pl-6 text-sm text-gray-400 italic">No experience listed</div>
-                                                )}
-                                            </div>
-                                        </section>
-
-                                        <Separator />
-
-                                        {/* Education Section */}
-                                        <section>
-                                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-5 flex items-center gap-2">
-                                                <GraduationCap className="h-4 w-4 text-gray-400" />
-                                                Education
-                                            </h3>
-                                            <div className="space-y-6 relative pl-2 border-l-2 border-gray-100 ml-2">
-                                                {candidate.education_list && candidate.education_list.length > 0 ? (
-                                                    candidate.education_list.map((edu, i) => (
-                                                        <div key={i} className="relative pl-6">
-                                                            <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 border-gray-200 bg-white"></div>
-                                                            <div className="flex justify-between items-start mb-1">
-                                                                <h4 className="text-base font-bold text-gray-900">{edu.institution}</h4>
-                                                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
-                                                                    {formatDateRange(edu.start_date, edu.end_date, edu.is_current)}
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-sm font-medium text-gray-700">{edu.degree} {edu.major ? `in ${edu.major}` : ''}</div>
-                                                            {edu.description && <div className="text-sm text-gray-600 mt-2 leading-relaxed">{edu.description}</div>}
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="pl-6 text-sm text-gray-400 italic">No education listed</div>
-                                                )}
-                                            </div>
-                                        </section>
-                                    </div>
-                                ) : (
+                                {viewMode === 'Resume' && (
                                     <div className="h-[calc(100vh-250px)] min-h-[600px] w-full bg-white rounded-md border border-gray-200 overflow-hidden relative shadow-sm">
                                         {candidate.resume_url ? (
                                             (() => {
@@ -279,18 +224,67 @@ export default function CandidateProfileDrawer({ open, onOpenChange, candidate }
                                         )}
                                     </div>
                                 )}
+
+                                {viewMode === 'Experience' && (
+                                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 max-w-2xl">
+                                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-5 flex items-center gap-2">
+                                            <Building2 className="h-4 w-4 text-gray-400" />
+                                            Experience
+                                        </h3>
+                                        <div className="space-y-8 relative pl-2 border-l-2 border-gray-100 ml-2">
+                                            {candidate.experience_list && candidate.experience_list.length > 0 ? (
+                                                candidate.experience_list.map((exp, i) => (
+                                                    <div key={i} className="relative pl-6">
+                                                        <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 border-gray-200 bg-white"></div>
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <h4 className="text-base font-bold text-gray-900">{exp.title}</h4>
+                                                            <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                                                                {formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm font-medium text-gray-700 mb-1">{exp.company}</div>
+                                                        {exp.location && <div className="text-xs text-gray-500 mb-2">{exp.location}</div>}
+                                                        {exp.description && <div className="text-sm text-gray-600 mt-2 leading-relaxed">{exp.description}</div>}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="pl-6 text-sm text-gray-400 italic">No experience listed</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {viewMode === 'Education' && (
+                                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 max-w-2xl">
+                                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-5 flex items-center gap-2">
+                                            <GraduationCap className="h-4 w-4 text-gray-400" />
+                                            Education
+                                        </h3>
+                                        <div className="space-y-6 relative pl-2 border-l-2 border-gray-100 ml-2">
+                                            {candidate.education_list && candidate.education_list.length > 0 ? (
+                                                candidate.education_list.map((edu, i) => (
+                                                    <div key={i} className="relative pl-6">
+                                                        <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 border-gray-200 bg-white"></div>
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <h4 className="text-base font-bold text-gray-900">{edu.institution}</h4>
+                                                            <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                                                                {formatDateRange(edu.start_date, edu.end_date, edu.is_current)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm font-medium text-gray-700">{edu.degree} {edu.major ? `in ${edu.major}` : ''}</div>
+                                                        {edu.description && <div className="text-sm text-gray-600 mt-2 leading-relaxed">{edu.description}</div>}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="pl-6 text-sm text-gray-400 italic">No education listed</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="screening" className="flex-1 overflow-y-auto p-6 m-0 outline-none">
-                            <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm text-center py-20">
-                                <div className="mx-auto w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                                    <FileText className="h-8 w-8 text-gray-300" />
-                                </div>
-                                <h3 className="text-lg font-medium text-gray-900 mb-1">No screening questions</h3>
-                                <p className="text-gray-500 max-w-sm mx-auto">This job post doesn't have any screening questions configured.</p>
-                            </div>
-                        </TabsContent>
+
                     </Tabs>
                 </div>
 

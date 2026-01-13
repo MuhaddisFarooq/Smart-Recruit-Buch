@@ -19,6 +19,7 @@ type Job = {
     additional_information: string;
     addedBy: string;
     status: string;
+    has_applied: boolean;
 };
 
 type OtherJob = {
@@ -76,6 +77,7 @@ export default function JobDetailPage() {
     };
 
     const handleApply = () => {
+        if (job?.has_applied) return;
         router.push(`/candidate/jobs/${jobId}/apply`);
     };
 
@@ -132,7 +134,14 @@ export default function JobDetailPage() {
                     <div className="flex-1">
                         {/* Job Header */}
                         <div className="mb-8 text-white">
-                            <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">{job.job_title}</h1>
+                            <div className="flex items-center gap-4 mb-4">
+                                <h1 className="text-4xl md:text-5xl font-bold tracking-tight">{job.job_title}</h1>
+                                {job.has_applied && (
+                                    <span className="px-4 py-1.5 bg-green-500/20 text-green-400 border border-green-500/50 text-sm font-bold rounded-full uppercase tracking-wide backdrop-blur-sm">
+                                        Applied
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xl text-white/90 font-light flex items-center gap-2">
                                 <MapPin className="h-5 w-5 text-[#b9d36c]" />
                                 {getLocationString()}
@@ -199,10 +208,20 @@ export default function JobDetailPage() {
                             {/* Action Buttons */}
                             <button
                                 onClick={handleApply}
-                                className="w-full py-4 bg-[#b9d36c] text-neutral-900 text-lg font-bold rounded-xl hover:bg-[#a3bd5b] transition-all shadow-lg hover:shadow-xl mb-4 transform hover:-translate-y-0.5"
+                                disabled={job.has_applied}
+                                className={`w-full py-4 text-lg font-bold rounded-xl transition-all shadow-lg mb-4 transform ${job.has_applied
+                                    ? "bg-neutral-200 text-neutral-400 cursor-not-allowed shadow-none"
+                                    : "bg-[#b9d36c] text-neutral-900 hover:bg-[#a3bd5b] hover:shadow-xl hover:-translate-y-0.5"
+                                    }`}
                             >
-                                I'M INTERESTED
+                                {job.has_applied ? "APPLIED" : "I'M INTERESTED"}
                             </button>
+                            {job.has_applied && (
+                                <p className="text-center text-sm text-green-600 font-medium mb-4 bg-green-50 py-2 rounded-lg border border-green-100 flex items-center justify-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                                    Job Already Applied
+                                </p>
+                            )}
                             <button
                                 onClick={() => router.push(`/candidate/jobs/${jobId}/refer`)}
                                 className="w-full py-4 border-2 border-neutral-200 text-neutral-600 text-lg font-semibold rounded-xl hover:border-[#b9d36c] hover:text-[#b9d36c] hover:bg-[#b9d36c]/5 transition-all mb-8"
@@ -268,6 +287,6 @@ export default function JobDetailPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

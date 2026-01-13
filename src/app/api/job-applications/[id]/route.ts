@@ -24,6 +24,8 @@ export async function GET(
                 ja.status,
                 ja.applied_at,
                 ja.applied_at,
+                ja.score,
+                u.avatar_url,
                 COALESCE(ja.resume_path, ja.resume_url, u.resume_url) as resume_url,
                 u.name,
                 u.email,
@@ -98,9 +100,23 @@ export async function PATCH(
             return NextResponse.json({ error: "Invalid status" }, { status: 400 });
         }
 
+        // Fetch current status
+        const currentApp = await query("SELECT status FROM job_applications WHERE id = ?", [id]);
+        const previousStatus = currentApp.length > 0 ? currentApp[0].status : null;
+
         await execute(
             "UPDATE job_applications SET status = ? WHERE id = ?",
             [status, id]
+        );
+
+        // Log the status change
+        // TODO: Use actual user ID from session. Assuming 1 (Admin) for now.
+        const changedByUserId = 1;
+
+        await execute(
+            `INSERT INTO application_status_logs (application_id, previous_status, new_status, changed_by_user_id) 
+             VALUES (?, ?, ?, ?)`,
+            [id, previousStatus, status, changedByUserId]
         );
 
         // --- Notification Trigger ---

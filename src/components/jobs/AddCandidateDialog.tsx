@@ -191,6 +191,11 @@ export default function AddCandidateDialog({
             return;
         }
 
+        if (!formData.jobId) {
+            toast.error("Please select a job to apply to");
+            return;
+        }
+
         try {
             const res = await fetch("/api/admin/candidates/add", {
                 method: "POST",
@@ -203,14 +208,41 @@ export default function AddCandidateDialog({
                 onOpenChange(false);
                 // Ideally refresh parent list here
             } else {
-                toast.error("Failed to add candidate");
+                const data = await res.json();
+                toast.error(data.error || "Failed to add candidate");
             }
-        } catch (error) {
-            toast.error("Error saving candidate");
+        } catch (error: any) {
+            toast.error(error.message || "Error saving candidate");
         }
     };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        const uploadData = new FormData();
+        uploadData.append("file", file);
+
+        try {
+            const res = await fetch("/api/uploads?folder=candidates", { method: "POST", body: uploadData });
+            if (res.ok) {
+                const data = await res.json();
+                setFormData(prev => ({ ...prev, photoUrl: data.url }));
+                toast.success("Profile picture uploaded");
+            } else {
+                toast.error("Failed to upload image");
+            }
+        } catch (error) {
+            console.error("Upload error", error);
+            toast.error("Error uploading image");
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -366,8 +398,24 @@ export default function AddCandidateDialog({
                                                     {formData.firstName?.[0]}{formData.lastName?.[0]}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <Button variant="outline" size="sm" className="w-full border-green-600 text-green-700">Upload image</Button>
-                                            <Button variant="ghost" size="sm" className="w-full text-gray-500">Remove image</Button>
+
+                                            <input
+                                                type="file"
+                                                ref={imageInputRef}
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                            />
+
+                                            <Button variant="outline" size="sm" className="w-full border-green-600 text-green-700" onClick={() => imageInputRef.current?.click()} disabled={isUploading}>
+                                                {isUploading ? "Uploading..." : "Upload image"}
+                                            </Button>
+
+                                            {formData.photoUrl && (
+                                                <Button variant="ghost" size="sm" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setFormData({ ...formData, photoUrl: "" })}>
+                                                    Remove image
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 </TabsContent>

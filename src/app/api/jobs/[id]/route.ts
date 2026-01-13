@@ -5,6 +5,19 @@ import { authOptions } from "@/lib/auth/options";
 
 export const dynamic = "force-dynamic";
 
+// Helper to get user ID
+async function getUserId(session: any) {
+    if (!session?.user) return null;
+    let userId = (session.user as any).id;
+    if (!userId && session.user.email) {
+        const rows = await query("SELECT id FROM users WHERE email = ?", [session.user.email]);
+        if (Array.isArray(rows) && rows.length > 0) {
+            userId = (rows[0] as any).id;
+        }
+    }
+    return userId;
+}
+
 // GET /api/jobs/[id] - Get a specific job
 export async function GET(
     req: NextRequest,
@@ -12,7 +25,13 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const rows = await query("SELECT * FROM jobs WHERE id = ?", [id]);
+        const session = await getServerSession(authOptions);
+        const userId = await getUserId(session);
+        const rows = await query(`
+            SELECT *, 
+            ${userId ? `(SELECT COUNT(*) FROM job_applications WHERE job_id = jobs.id AND user_id = ${userId}) > 0` : 'FALSE'} as has_applied
+            FROM jobs WHERE id = ?
+        `, [id]);
 
         if (Array.isArray(rows) && rows.length > 0) {
             return NextResponse.json({

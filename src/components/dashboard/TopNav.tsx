@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Search, Bell, User, Menu, X, Settings, Users, Store, Newspaper, MessageCircle, HelpCircle, MessageSquare, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import NotificationBell from "@/components/ui/NotificationBell";
+import GlobalSearch from "./GlobalSearch";
 import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 
@@ -100,14 +101,7 @@ export default function TopNav() {
                 {/* Right: Search, Bell, Create Job, Avatar */}
                 <div className="ml-auto flex items-center gap-2 md:gap-4 lg:ml-[110px]">
                     {/* Search - hidden on mobile, visible on tablet+ */}
-                    <div className="relative hidden md:block">
-                        <input
-                            type="text"
-                            placeholder="Search"
-                            className="w-[180px] lg:w-[280px] h-9 pl-3 pr-10 text-sm border border-[#D1D1D1] rounded bg-white focus:outline-none focus:border-[#999] placeholder:text-[#999]"
-                        />
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666]" />
-                    </div>
+                    <GlobalSearch />
 
                     {/* Mobile Search Icon */}
                     <button className="p-2 text-[#666] hover:text-[#333] md:hidden">

@@ -9,7 +9,7 @@ function sanitizeName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
 }
 
-const ALLOWED_FOLDERS = new Set(["consultants", "categories", "careers", "misc", "resumes"]);
+const ALLOWED_FOLDERS = new Set(["consultants", "categories", "careers", "misc", "resumes", "candidates"]);
 
 /** Try to compress an image buffer using sharp if available. */
 async function maybeCompressImage(

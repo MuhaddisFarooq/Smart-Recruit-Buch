@@ -15,9 +15,12 @@ type Application = {
     country: string;
     status: string;
     applied_at: string;
+    interview_date?: string;
 };
 
-// Unified Status Configuration
+
+
+{/* Desktop Status Badge & Action */ }
 const statusConfig: { [key: string]: { color: string; bg: string; border: string; icon: any; label: string } } = {
     Applied: { color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", icon: AlertCircle, label: "Applied" },
     new: { color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", icon: AlertCircle, label: "Under Review" },
@@ -179,6 +182,13 @@ export default function MyApplicationsPage() {
                                                 <Calendar className="h-4 w-4 mr-2" />
                                                 Applied on {formatDate(app.applied_at)}
                                             </div>
+
+                                            {app.interview_date && (
+                                                <div className="mt-2 flex items-center text-sm text-orange-600 font-medium bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 w-fit">
+                                                    <Clock className="h-4 w-4 mr-2" />
+                                                    Interview: {new Date(app.interview_date).toLocaleString()}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Desktop Status Badge & Action */}

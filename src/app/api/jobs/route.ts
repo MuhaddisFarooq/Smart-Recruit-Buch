@@ -3,6 +3,19 @@ import { getServerSession } from "next-auth";
 import { query, execute } from "@/lib/db";
 import { authOptions } from "@/lib/auth/options";
 
+// Helper to get user ID
+async function getUserId(session: any) {
+    if (!session?.user) return null;
+    let userId = (session.user as any).id;
+    if (!userId && session.user.email) {
+        const rows = await query("SELECT id FROM users WHERE email = ?", [session.user.email]);
+        if (Array.isArray(rows) && rows.length > 0) {
+            userId = (rows[0] as any).id;
+        }
+    }
+    return userId;
+}
+
 export async function GET(req: NextRequest) {
     try {
         // Auto-unpublish jobs that have passed their auto_unpublish_date
@@ -15,6 +28,9 @@ export async function GET(req: NextRequest) {
             AND (status = 'active' OR status = 'published')
         `, []);
 
+        const session = await getServerSession(authOptions);
+        const userId = await getUserId(session);
+
         const jobs = await query(`
             SELECT j.*, 
                 (SELECT u.name FROM job_hiring_team ht JOIN users u ON ht.user_id = u.id WHERE ht.job_id = j.id AND ht.role = 'Recruiter' LIMIT 1) as recruiter,
@@ -23,7 +39,8 @@ export async function GET(req: NextRequest) {
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'reviewed') as in_review_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'interview') as interview_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'offered') as offered_count,
-                (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'hired') as hired_count
+                (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'hired') as hired_count,
+                ${userId ? `(SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.user_id = ${userId}) > 0` : 'FALSE'} as has_applied
             FROM jobs j 
             ORDER BY j.addedDate DESC
         `);

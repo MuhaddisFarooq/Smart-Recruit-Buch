@@ -19,7 +19,17 @@ import {
     Info,
     ArrowUp,
     ArrowDown,
-    ArrowUpDown
+    ArrowUpDown,
+    Check,
+    Square,
+    CheckSquare,
+    X,
+    Trash2,
+    Users,
+    Mail,
+    Share2,
+    CalendarCheck,
+    ArrowRight
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import CandidateProfileDrawer from "@/components/jobs/CandidateProfileDrawer";
@@ -38,6 +48,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import AddCandidateDialog from "@/components/jobs/AddCandidateDialog";
 import HiringTeamManager from "@/components/jobs/HiringTeamManager";
+import ScheduleInterviewDialog from "@/components/jobs/ScheduleInterviewDialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // --- Types ---
 
@@ -94,6 +106,10 @@ type Application = {
     current_company: string;
     experience_list?: any[]; // Keep as any for now or create shared type
     education_list?: any[];
+    avatar_url?: string;
+    score?: number;
+    last_status_change_by?: string;
+    last_status_changer_role?: string;
 };
 
 // --- Components ---
@@ -108,12 +124,16 @@ const StatusCounterCard = ({ label, count, active = false }: { label: string, co
     </div>
 );
 
-const ApplicantRow = ({ app, onStatusChange, onDelete, onView }: { app: Application, onStatusChange: (id: number, status: string) => void, onDelete: (id: number) => void, onView: (app: Application) => void }) => {
+const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDelete, onView, onSchedule }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDelete: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void }) => {
     return (
         <div className="flex items-center py-4 px-4 hover:bg-gray-50 border-b border-gray-100 group transition-colors">
-            {/* Checkbox Placeholder */}
+            {/* Checkbox */}
             <div className="mr-4">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                <Checkbox
+                    checked={selected}
+                    onCheckedChange={() => onSelect(app.application_id)}
+                    className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 border-gray-300"
+                />
             </div>
 
             {/* Avatar & Name */}
@@ -122,6 +142,7 @@ const ApplicantRow = ({ app, onStatusChange, onDelete, onView }: { app: Applicat
                 onClick={() => window.open(`/people/${app.application_id}`, '_blank')}
             >
                 <Avatar className="h-10 w-10 bg-purple-600 text-white group-hover/name:ring-2 ring-purple-100 transition-all">
+                    {app.avatar_url && <AvatarImage src={app.avatar_url} />}
                     <AvatarFallback className="bg-purple-600">
                         {app.name ? app.name.substring(0, 2).toUpperCase() : "NA"}
                     </AvatarFallback>
@@ -163,7 +184,7 @@ const ApplicantRow = ({ app, onStatusChange, onDelete, onView }: { app: Applicat
                         <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'interview')}>
                             Invite to interview
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
+                        <DropdownMenuItem onClick={() => onSchedule(app.application_id)}>
                             Invite to self-schedule
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
@@ -213,16 +234,24 @@ const ApplicantRow = ({ app, onStatusChange, onDelete, onView }: { app: Applicat
             <div className="w-[15%] px-2">
                 <div className="flex flex-col">
                     <span className="text-sm font-medium text-gray-700 capitalize">{app.status.replace('-', ' ')}</span>
+                    {app.last_status_change_by && (
+                        <span className="text-[10px] text-gray-400">by {app.last_status_change_by}</span>
+                    )}
                     <span className="text-xs text-gray-500">{new Date(app.applied_at).toLocaleDateString()}</span>
                 </div>
             </div>
 
-            {/* Rating (Placeholder) */}
+            {/* Score (Replaces Rating) */}
             <div className="w-[10%] flex justify-end px-2">
-                <div className="flex gap-0.5 text-gray-300">
-                    {[1, 2, 3, 4, 5].map(i => (
-                        <span key={i} className="text-lg leading-none cursor-pointer hover:text-yellow-400">☆</span>
-                    ))}
+                <div className="flex flex-col items-center justify-center">
+                    <Badge variant="outline" className={`
+                        ${(app.score || 0) >= 8 ? "border-green-500 text-green-700 bg-green-50" :
+                            (app.score || 0) >= 5 ? "border-yellow-500 text-yellow-700 bg-yellow-50" :
+                                "border-red-500 text-red-700 bg-red-50"}
+                        font-bold
+                    `}>
+                        {app.score || 0} / 10
+                    </Badge>
                 </div>
             </div>
 
@@ -244,8 +273,12 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+    const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+    const [scoreFilter, setScoreFilter] = useState<number | null>(null);
+    const [selectedAppIds, setSelectedAppIds] = useState<number[]>([]);
 
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'score', direction: 'desc' });
 
     const [selectedCandidate, setSelectedCandidate] = useState<Application | null>(null);
 
@@ -253,6 +286,14 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     const [isAddCandidateOpen, setIsAddCandidateOpen] = useState(false);
     const [internalNotes, setInternalNotes] = useState("");
     const [isEditingNotes, setIsEditingNotes] = useState(false);
+
+    const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
+    const [schedulingApplicationId, setSchedulingApplicationId] = useState<number | null>(null);
+
+    const handleSchedule = (id: number) => {
+        setSchedulingApplicationId(id);
+        setIsScheduleDialogOpen(true);
+    };
 
     const fetchJobData = async () => {
         try {
@@ -281,6 +322,58 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
         fetchJobData();
     }, [resolvedParams.id]);
 
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedAppIds(filteredApplications.map(app => app.application_id));
+        } else {
+            setSelectedAppIds([]);
+        }
+    };
+
+    const handleSelectOne = (id: number) => {
+        setSelectedAppIds(prev =>
+            prev.includes(id) ? prev.filter(appId => appId !== id) : [...prev, id]
+        );
+    };
+
+    const handleBulkAction = async (action: string) => {
+        if (selectedAppIds.length === 0) return;
+
+        try {
+            if (action === 'delete') {
+                // Implement bulk delete
+                await Promise.all(selectedAppIds.map(id => fetch(`/api/user/application/${id}`, { method: 'DELETE' })));
+                setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.application_id)));
+                toast.success(`Deleted ${selectedAppIds.length} candidate(s)`);
+            } else if (['rejected', 'hired', 'withdrawn', 'interview'].includes(action)) {
+                // Implement bulk status change
+                await Promise.all(selectedAppIds.map(id =>
+                    fetch(`/api/user/application/${id}/status`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: action })
+                    })
+                ));
+                // Update local state
+                setApplications(prev => prev.map(app =>
+                    selectedAppIds.includes(app.application_id) ? { ...app, status: action } : app
+                ));
+                toast.success(`Updated status for ${selectedAppIds.length} candidate(s)`);
+            } else {
+                toast.info(`${action} action for ${selectedAppIds.length} candidates coming soon`);
+            }
+            setSelectedAppIds([]); // Clear selection handling
+        } catch (error) {
+            console.error("Bulk action failed", error);
+            toast.error("Failed to perform bulk action");
+        }
+    };
+
+    const uniqueLocations = useMemo(() => {
+        const locs = new Set(applications.map(app => app.city).filter(Boolean));
+        return Array.from(locs);
+    }, [applications]);
+
     const handleSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -292,14 +385,35 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     // Filter AND Sort Applications
     const filteredApplications = useMemo(() => {
         let result = applications.filter(app => {
-            if (!searchQuery) return true;
-            const query = searchQuery.toLowerCase();
-            return (
-                app.name?.toLowerCase().includes(query) ||
-                app.email?.toLowerCase().includes(query) ||
-                app.current_company?.toLowerCase().includes(query) ||
-                app.current_title?.toLowerCase().includes(query)
-            );
+            let matches = true;
+
+            // Search Filter
+            if (searchQuery) {
+                const query = searchQuery.toLowerCase();
+                matches = matches && (
+                    (app.name?.toLowerCase() || "").includes(query) ||
+                    (app.email?.toLowerCase() || "").includes(query) ||
+                    (app.current_company?.toLowerCase() || "").includes(query) ||
+                    (app.current_title?.toLowerCase() || "").includes(query)
+                );
+            }
+
+            // Status Filter
+            if (selectedStatuses.length > 0) {
+                matches = matches && selectedStatuses.includes(app.status);
+            }
+
+            // Location Filter
+            if (selectedLocations.length > 0) {
+                matches = matches && selectedLocations.includes(app.city);
+            }
+
+            // Score Filter
+            if (scoreFilter !== null) {
+                matches = matches && (app.score || 0) >= scoreFilter;
+            }
+
+            return matches;
         });
 
         if (sortConfig) {
@@ -312,14 +426,24 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                 if (aValue === null || aValue === undefined) return 1;
                 if (bValue === null || bValue === undefined) return -1;
 
-                if (typeof aValue === 'string') {
+                // Handle numeric score explicitly
+                if (sortConfig.key === 'score') {
+                    const numA = Number(aValue);
+                    const numB = Number(bValue);
+                    return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
+                }
+
+                if (typeof aValue === 'string' && typeof bValue === 'string') {
                     return sortConfig.direction === 'asc'
                         ? aValue.localeCompare(bValue)
                         : bValue.localeCompare(aValue);
                 } else {
+                    // Fallback for mixed types or non-strings
+                    const strA = String(aValue);
+                    const strB = String(bValue);
                     return sortConfig.direction === 'asc'
-                        ? (aValue > bValue ? 1 : -1)
-                        : (aValue < bValue ? 1 : -1);
+                        ? (strA > strB ? 1 : -1)
+                        : (strA < strB ? 1 : -1);
                 }
             });
         }
@@ -342,6 +466,22 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
             }
         } catch (error) {
             toast.error("An error occurred");
+        }
+    };
+
+    const handleAnalyze = async (appId: number) => {
+        const toastId = toast.loading("Analyzing candidate...");
+        try {
+            const res = await fetch(`/api/job-applications/${appId}/analyze`, { method: "POST" });
+            if (res.ok) {
+                const data = await res.json();
+                toast.success(`Analysis complete. Score: ${data.score}`, { id: toastId });
+                fetchJobData();
+            } else {
+                toast.error("Analysis failed", { id: toastId });
+            }
+        } catch (error) {
+            toast.error("An error occurred", { id: toastId });
         }
     };
 
@@ -411,12 +551,6 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                 <span>{job.city}, {job.country}</span>
                                 <span>•</span>
                                 <span>Created: {new Date(job.addedDate).toLocaleDateString()}</span>
-                                <span>•</span>
-                                <span className="uppercase text-gray-500">REF{job.id}M</span>
-                                <span>•</span>
-                                <a href={`/candidate/jobs/${job.id}`} target="_blank" className="text-blue-500 hover:underline flex items-center gap-1">
-                                    View Live <LinkIcon className="h-3 w-3" />
-                                </a>
                             </div>
                         </div>
                         <div className="flex gap-2">
@@ -540,32 +674,152 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                     </TabsList>
 
                     <TabsContent value="applicants" className="mt-6">
+                        {/* Bulk Actions Bar */}
+                        {selectedAppIds.length > 0 && (
+                            <div className="mb-6 bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm font-medium text-blue-900 ml-2">
+                                        {selectedAppIds.length} of {filteredApplications.length} selected
+                                    </span>
+                                    <div className="h-4 w-px bg-blue-200"></div>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="sm" className="text-blue-700 hover:text-blue-800 hover:bg-blue-100 font-medium h-8">
+                                                Actions <ChevronDown className="h-4 w-4 ml-1" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="start" className="w-56">
+                                            <DropdownMenuItem onClick={() => handleBulkAction('rejected')}>
+                                                <X className="mr-2 h-4 w-4" /> Reject ({selectedAppIds.length})
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleBulkAction('hired')}>
+                                                <Check className="mr-2 h-4 w-4" /> Hire ({selectedAppIds.length})
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
+                                                <CalendarCheck className="mr-2 h-4 w-4" /> Invite to event ({selectedAppIds.length})
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
+                                                <Share2 className="mr-2 h-4 w-4" /> Share ({selectedAppIds.length})
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem onClick={() => handleBulkAction('interview')}>
+                                                Change status ({selectedAppIds.length})
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
+                                                <Mail className="mr-2 h-4 w-4" /> Send message ({selectedAppIds.length})
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem className="text-red-600" onClick={() => {
+                                                if (confirm(`Delete ${selectedAppIds.length} candidates? This cannot be undone.`)) {
+                                                    handleBulkAction('delete');
+                                                }
+                                            }}>
+                                                <Trash2 className="mr-2 h-4 w-4" /> Delete candidates ({selectedAppIds.length})
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-400 hover:text-blue-600 hover:bg-blue-100 rounded-full" onClick={() => setSelectedAppIds([])}>
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+
                         {/* Filters Bar */}
                         <div className="mb-6 space-y-4">
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
                                     className="pl-10 h-10 border-gray-300 bg-white"
-                                    placeholder="Search by name, email..."
-                                    value={searchQuery}
+                                    placeholder="Search By Name Or Email"
+                                    value={searchQuery || ""}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
                             <div className="flex gap-2">
-                                <Button variant="outline" size="sm" className="rounded-full border-gray-300 text-gray-600 h-8 text-xs font-medium">Status</Button>
-                                <Button variant="outline" size="sm" className="rounded-full border-gray-300 text-gray-600 h-8 text-xs font-medium">Rating</Button>
-                                <Button variant="outline" size="sm" className="rounded-full border-gray-300 text-gray-600 h-8 text-xs font-medium">Screening questions</Button>
-                                <Button variant="outline" size="sm" className="rounded-full border-gray-300 text-gray-600 h-8 text-xs font-medium">Location</Button>
-                                <Button variant="outline" size="sm" className="rounded-full border-gray-300 text-gray-600 h-8 text-xs font-medium">Proximity</Button>
-                                <Button variant="outline" size="sm" className="rounded-full border-gray-300 text-gray-600 h-8 text-xs font-medium">Source</Button>
-                                <Button variant="outline" size="sm" className="rounded-full border-gray-300 text-gray-600 h-8 text-xs font-medium">More</Button>
+                                {/* Status Filter */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className={`rounded-full border-gray-300 h-8 text-xs font-medium ${selectedStatuses.length > 0 ? "bg-green-50 border-green-200 text-green-700" : "text-gray-600"}`}>
+                                            Status {selectedStatuses.length > 0 && `(${selectedStatuses.length})`} <ChevronDown className="h-3 w-3 ml-1" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-56 p-2">
+                                        <div className="text-xs font-semibold text-gray-500 mb-2 px-2">Filter by Status</div>
+                                        {['new', 'reviewed', 'interview', 'offered', 'hired', 'rejected', 'withdrawn'].map((status) => (
+                                            <div key={status} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 rounded cursor-pointer" onClick={(e) => {
+                                                e.preventDefault();
+                                                setSelectedStatuses(prev =>
+                                                    prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+                                                );
+                                            }}>
+                                                <Checkbox checked={selectedStatuses.includes(status)} />
+                                                <span className="capitalize text-sm">{status.replace('-', ' ')}</span>
+                                            </div>
+                                        ))}
+                                        {selectedStatuses.length > 0 && (
+                                            <Button variant="ghost" size="sm" className="w-full mt-2 text-xs text-red-500 h-7" onClick={() => setSelectedStatuses([])}>Clear Status</Button>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                {/* Score Filter (Replaces Rating) */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className={`rounded-full border-gray-300 h-8 text-xs font-medium ${scoreFilter !== null ? "bg-green-50 border-green-200 text-green-700" : "text-gray-600"}`}>
+                                            Score {scoreFilter !== null && `(>=${scoreFilter})`} <ChevronDown className="h-3 w-3 ml-1" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-48 p-1">
+                                        <div className="text-xs font-semibold text-gray-500 px-2 py-2">Minimum Score</div>
+                                        {[9, 8, 7, 6].map((score) => (
+                                            <DropdownMenuItem key={score} onClick={() => setScoreFilter(score)}>
+                                                <div className="flex items-center justify-between w-full">
+                                                    <span>{score}+ / 10</span>
+                                                    {scoreFilter === score && <Check className="h-4 w-4 text-green-600" />}
+                                                </div>
+                                            </DropdownMenuItem>
+                                        ))}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => setScoreFilter(null)} className="text-red-600">
+                                            Clear Filter
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                {/* Location Filter */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className={`rounded-full border-gray-300 h-8 text-xs font-medium ${selectedLocations.length > 0 ? "bg-green-50 border-green-200 text-green-700" : "text-gray-600"}`}>
+                                            Location {selectedLocations.length > 0 && `(${selectedLocations.length})`} <ChevronDown className="h-3 w-3 ml-1" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-56 p-2">
+                                        <div className="text-xs font-semibold text-gray-500 mb-2 px-2">Filter by Location</div>
+                                        {uniqueLocations.length === 0 ? (
+                                            <div className="px-2 py-2 text-sm text-gray-400 italic">No locations found</div>
+                                        ) : (
+                                            uniqueLocations.map((loc) => (
+                                                <div key={loc} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 rounded cursor-pointer" onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setSelectedLocations(prev =>
+                                                        prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]
+                                                    );
+                                                }}>
+                                                    <Checkbox checked={selectedLocations.includes(loc)} />
+                                                    <span className="text-sm truncate">{loc}</span>
+                                                </div>
+                                            ))
+                                        )}
+                                        {selectedLocations.length > 0 && (
+                                            <Button variant="ghost" size="sm" className="w-full mt-2 text-xs text-red-500 h-7" onClick={() => setSelectedLocations([])}>Clear Location</Button>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
 
                             <div className="flex justify-between items-center pt-2">
                                 <p className="text-sm text-gray-500">Showing {filteredApplications.length} of {applications.length} applicants</p>
-                                <div className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                                    <Columns className="h-5 w-5" />
-                                </div>
                             </div>
                         </div>
 
@@ -573,7 +827,13 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden min-h-[400px]">
                             {/* Table Header */}
                             <div className="flex items-center bg-white border-b border-gray-200 py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                <div className="mr-4"><input type="checkbox" className="w-4 h-4 rounded border-gray-300" /></div>
+                                <div className="mr-4">
+                                    <Checkbox
+                                        checked={filteredApplications.length > 0 && selectedAppIds.length === filteredApplications.length}
+                                        onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                                        className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 border-gray-300"
+                                    />
+                                </div>
                                 <div className="w-[25%]">
                                     <div className="flex items-center cursor-pointer group select-none hover:text-gray-700" onClick={() => handleSort('name')}>
                                         Applicant {renderSortIcon('name')}
@@ -590,7 +850,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                     <SortableHeader label="Status" sortKey="status" />
                                 </div>
                                 <div className="w-[10%] px-2">
-                                    <SortableHeader label="Rating" sortKey="rating" align="right" />
+                                    <SortableHeader label="Score" sortKey="score" align="right" />
                                 </div>
                                 <div className="w-[10%] px-2">
                                     <SortableHeader label="Application date" sortKey="applied_at" align="right" />
@@ -611,12 +871,15 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                         <ApplicantRow
                                             key={app.application_id}
                                             app={app}
+                                            selected={selectedAppIds.includes(app.application_id)}
+                                            onSelect={handleSelectOne}
                                             onStatusChange={handleStatusChange}
                                             onDelete={handleDeleteApplication}
                                             onView={(candidate) => {
                                                 setSelectedCandidate(candidate);
                                                 setDrawerOpen(true);
                                             }}
+                                            onSchedule={handleSchedule}
                                         />
                                     ))
                                 )}
@@ -684,14 +947,6 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
 
                             <div className="text-sm text-gray-500 mb-6 flex items-center flex-wrap gap-1">
                                 <span>{job.location || "No location"}, {job.city}, {job.country}</span>
-                                <span className="mx-1">•</span>
-                                <a href={`/candidate/jobs/${job.id}`} target="_blank" className="text-blue-600 hover:underline">
-                                    https://smrtr.io/wn59H (View Live)
-                                </a>
-                                <span className="mx-1">•</span>
-                                <a href="#" className="text-blue-600 hover:underline">
-                                    Screening Questions
-                                </a>
                             </div>
 
                             <div className="bg-gray-50 rounded border border-gray-100 p-3 flex items-center gap-4 text-sm text-gray-600">

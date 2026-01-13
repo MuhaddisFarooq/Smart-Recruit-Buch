@@ -34,7 +34,8 @@ export async function POST(req: Request) {
                 UPDATE users SET 
                 name = ?, phone = ?, city = ?, 
                 resume_url = COALESCE(?, resume_url),
-                linkedin_url = COALESCE(?, linkedin_url)
+                linkedin_url = COALESCE(?, linkedin_url),
+                avatar_url = COALESCE(?, avatar_url)
                 WHERE id = ?
             `, [
                 `${firstName} ${lastName}`,
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
                 location || null,
                 resumeUrl || null,
                 website || null,
+                photoUrl || null,
                 userId
             ]);
         } else {
@@ -49,8 +51,8 @@ export async function POST(req: Request) {
             // Generate a random password hash for now
             const dummyHash = await bcrypt.hash(Math.random().toString(36), 10);
             const result = await execute(`
-                INSERT INTO users (name, email, password, phone, city, resume_url, linkedin_url, role)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'candidate')
+                INSERT INTO users (name, email, password, phone, city, resume_url, linkedin_url, avatar_url, role)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'candidate')
             `, [
                 `${firstName} ${lastName}`,
                 email,
@@ -58,7 +60,8 @@ export async function POST(req: Request) {
                 phone || null,
                 location || null,
                 resumeUrl || null,
-                website || null
+                website || null,
+                photoUrl || null
             ]);
             userId = (result as any).insertId;
         }

@@ -7,6 +7,7 @@ import { Search, Filter, Loader2, Plus, ChevronDown } from "lucide-react";
 import PeopleRow, { PersonApplication } from "@/components/people/PeopleRow";
 import AddCandidateDialog from "@/components/jobs/AddCandidateDialog";
 import CandidateProfileDrawer from "@/components/jobs/CandidateProfileDrawer";
+import AddToJobDialog from "@/components/jobs/AddToJobDialog";
 import { toast } from "sonner";
 import {
     DropdownMenu,
@@ -42,6 +43,10 @@ export default function PeoplePage() {
     const [selectedPerson, setSelectedPerson] = useState<PersonApplication | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+
+    // Add to Job State
+    const [addToJobOpen, setAddToJobOpen] = useState(false);
+    const [selectedForJob, setSelectedForJob] = useState<PersonApplication | null>(null);
 
     const fetchPeople = async (pageNum: number, search: string, locs: Set<string>, stats: Set<string>, sort: string, reset = false) => {
         setLoading(true);
@@ -272,9 +277,9 @@ export default function PeoplePage() {
 
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <div className="flex items-center gap-1 cursor-pointer hover:text-gray-900">
+                                        <Button variant="ghost" className="flex items-center gap-1 cursor-pointer hover:text-gray-900 h-auto p-2 font-normal text-sm text-gray-600">
                                             Actions <span className="text-xs">▼</span>
-                                        </div>
+                                        </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-56">
                                         <DropdownMenuItem disabled={selectedCandidates.size === 0}>Add to job</DropdownMenuItem>
@@ -287,13 +292,13 @@ export default function PeoplePage() {
 
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <div className="flex items-center gap-1 cursor-pointer text-blue-600 font-medium">
+                                        <Button variant="ghost" className="flex items-center gap-1 cursor-pointer text-blue-600 font-medium h-auto p-2 hover:bg-transparent hover:text-blue-700">
                                             Sort by: <span className="underline">{
                                                 sortBy === "added_to_system" ? "Added to system" :
                                                     sortBy === "last_name" ? "A-Z by last name" :
                                                         "Modified Date"
                                             }</span> <span className="text-xs">▼</span>
-                                        </div>
+                                        </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-48">
                                         <DropdownMenuItem onClick={() => setSortBy("added_to_system")}>
@@ -329,6 +334,10 @@ export default function PeoplePage() {
                                             onView={(p) => {
                                                 setSelectedPerson(p);
                                                 setDrawerOpen(true);
+                                            }}
+                                            onAddToJob={(p) => {
+                                                setSelectedForJob(p);
+                                                setAddToJobOpen(true);
                                             }}
                                         />
                                     ))}
@@ -374,6 +383,22 @@ export default function PeoplePage() {
                 jobId={0} // 0 indicates we need to select a job
                 jobTitle=""
             />
+
+            {/* Add To Job Dialog */}
+            {selectedForJob && (
+                <AddToJobDialog
+                    isOpen={addToJobOpen}
+                    onClose={() => {
+                        setAddToJobOpen(false);
+                        setSelectedForJob(null);
+                    }}
+                    candidateId={selectedForJob.user_id}
+                    candidateName={selectedForJob.name}
+                    onSuccess={() => {
+                        // Optional: Refresh list or show notification
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -1,7 +1,6 @@
 import FeedCard from "@/components/dashboard/FeedCard";
 import AtAGlanceCard from "@/components/dashboard/AtAGlanceCard";
-import InviteCard from "@/components/dashboard/InviteCard";
-import UpcomingInterviewsCard from "@/components/dashboard/UpcomingInterviewsCard";
+
 
 export default function DashboardPage() {
   return (
@@ -19,15 +18,9 @@ export default function DashboardPage() {
       {/* Right Column - Sidebar Cards (desktop) */}
       <div className="hidden lg:block lg:order-2 space-y-4">
         <AtAGlanceCard />
-        <InviteCard />
-        <UpcomingInterviewsCard />
       </div>
 
-      {/* Additional cards on mobile (below feed) */}
-      <div className="lg:hidden space-y-4 order-3">
-        <InviteCard />
-        <UpcomingInterviewsCard />
-      </div>
+
     </div>
   );
 }
