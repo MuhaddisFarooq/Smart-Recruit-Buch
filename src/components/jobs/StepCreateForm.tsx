@@ -58,6 +58,19 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
                     placeholder="Start typing your job title to view templates"
                 />
             </div>
+            {/* Department */}
+            <div className="mb-4">
+                <label className="block text-sm text-[#333] mb-1">
+                    Department
+                </label>
+                <input
+                    type="text"
+                    value={formData.department || ""}
+                    onChange={(e) => updateField("department", e.target.value)}
+                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                    placeholder="e.g. Engineering, Sales, Human Resources"
+                />
+            </div>
 
             {/* Location */}
             <div className="mb-4">

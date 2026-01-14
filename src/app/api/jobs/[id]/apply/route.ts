@@ -49,6 +49,28 @@ export async function POST(
             return NextResponse.json({ error: "User ID not found in session" }, { status: 400 });
         }
 
+        // Check for active applications
+        const activeApplications = await query(
+            `SELECT id, job_id, status FROM job_applications 
+             WHERE user_id = ? 
+             AND status NOT IN ('Rejected', 'Withdrawn')`,
+            [userId]
+        );
+
+        if (Array.isArray(activeApplications) && activeApplications.length > 0) {
+            const activeApp = (activeApplications as any[])[0];
+
+            // If trying to apply to the SAME job again
+            if (activeApp.job_id == jobId) {
+                return NextResponse.json({ error: "You have already applied for this job." }, { status: 400 });
+            }
+
+            // If trying to apply to a NEW job while another is active
+            return NextResponse.json({
+                error: "You already have an active application. You cannot apply for another job until your current application is resolved (Rejected or Withdrawn)."
+            }, { status: 400 });
+        }
+
         // 1. Update User Profile
         // We update name, phone, city, and social links.
         await execute(
@@ -74,6 +96,16 @@ export async function POST(
                 userId
             ]
         );
+
+        // Update Designation and Department from Job
+        const currentJobDetails = await query("SELECT job_title, department FROM jobs WHERE id = ?", [jobId]);
+        if (Array.isArray(currentJobDetails) && currentJobDetails.length > 0) {
+            const job = (currentJobDetails as any[])[0];
+            await execute(
+                "UPDATE users SET designation = ?, department = ? WHERE id = ?",
+                [job.job_title, job.department, userId]
+            );
+        }
 
         // 2. Sync Experience
         // Delete existing and re-insert
@@ -123,7 +155,7 @@ export async function POST(
         // 4. Create Application
         await execute(
             `INSERT INTO job_applications (job_id, user_id, resume_path, message, status, applied_at)
-         VALUES (?, ?, ?, ?, 'new', NOW())`,
+         VALUES (?, ?, ?, ?, 'Applied', NOW())`,
             [jobId, userId, resumeUrl || null, message || null]
         );
 

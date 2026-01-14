@@ -47,7 +47,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             password,
             role,
             status,
-            picture
+            picture,
+            cnic,
+            phone,
+            joining_date
         } = body;
 
         // Check if user exists
@@ -64,7 +67,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         await execute(
             `UPDATE users SET 
         employee_id=?, name=?, department=?, designation=?, email=?, 
-        password=?, role=?, status=?, picture=?, updatedBy=?, updatedDate=NOW()
+        password=?, role=?, status=?, picture=?, cnic=?, phone=?, joining_date=?, updatedBy=?, updatedDate=NOW()
        WHERE id=?`,
             [
                 employee_id || null,
@@ -76,6 +79,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
                 role,
                 status,
                 picture || null,
+                cnic || null,
+                phone || null,
+                joining_date || null,
                 updatedBy,
                 id
             ]

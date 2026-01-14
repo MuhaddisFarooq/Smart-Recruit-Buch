@@ -17,8 +17,10 @@ export default function RegisterPage() {
         setIsLoading(true);
 
         const form = new FormData(e.currentTarget);
-        const name = String(form.get("name") || "").trim(); // Added
+        const name = String(form.get("name") || "").trim();
         const email = String(form.get("email") || "").trim();
+        const cnic = String(form.get("cnic") || "").trim();
+        const phone = String(form.get("phone") || "").trim();
         const password = String(form.get("password") || "").trim();
         const confirmPassword = String(form.get("confirmPassword") || "").trim();
 
@@ -32,7 +34,7 @@ export default function RegisterPage() {
             const res = await fetch("/api/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, password }),
+                body: JSON.stringify({ name, email, password, cnic, phone }),
             });
 
             const data = await res.json();
@@ -63,8 +65,26 @@ export default function RegisterPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-md mx-auto">
                 <div className="space-y-1">
-                    <label htmlFor="name" className="text-sm font-medium">Username</label>
+                    <label htmlFor="name" className="text-sm font-medium">Full Name</label>
                     <Input id="name" name="name" type="text" placeholder="John Doe" required />
+                </div>
+                <div className="space-y-1">
+                    <label htmlFor="cnic" className="text-sm font-medium">CNIC (13 digits)</label>
+                    <Input
+                        id="cnic"
+                        name="cnic"
+                        type="text"
+                        placeholder="1234512345671"
+                        required
+                        minLength={13}
+                        maxLength={13}
+                        pattern="\d{13}"
+                        title="Please enter exactly 13 digits"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <label htmlFor="phone" className="text-sm font-medium">Contact No</label>
+                    <Input id="phone" name="phone" type="tel" placeholder="03001234567" required />
                 </div>
                 <div className="space-y-1">
                     <label htmlFor="email" className="text-sm font-medium">Email</label>

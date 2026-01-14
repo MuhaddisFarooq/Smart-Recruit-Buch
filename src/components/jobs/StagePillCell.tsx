@@ -7,7 +7,7 @@ type StagePillCellProps = {
     hasDropdown?: boolean;
 };
 
-export default function StagePillCell({ count, hasDropdown = false }: StagePillCellProps) {
+export default function StagePillCell({ count, hasDropdown = false, onClick }: { count: number | null, hasDropdown?: boolean, onClick?: () => void }) {
     if (count === null || count === undefined) {
         return (
             <div className="flex justify-center">
@@ -20,7 +20,15 @@ export default function StagePillCell({ count, hasDropdown = false }: StagePillC
 
     return (
         <div className="flex justify-center">
-            <div className="min-w-[48px] h-9 px-3 bg-[#EEF6EE] rounded-md flex items-center justify-center gap-1 text-sm font-medium text-[#333]">
+            <div
+                onClick={(e) => {
+                    if (onClick) {
+                        e.stopPropagation();
+                        onClick();
+                    }
+                }}
+                className={`min-w-[48px] h-9 px-3 bg-[#EEF6EE] rounded-md flex items-center justify-center gap-1 text-sm font-medium text-[#333] ${onClick ? 'cursor-pointer hover:bg-[#dcecdc]' : ''}`}
+            >
                 <span>{count}</span>
                 {hasDropdown && <ChevronDown className="h-3.5 w-3.5 text-[#666]" />}
             </div>

@@ -36,13 +36,13 @@ export default function PipelineTableHeader({ totalJobs, sortConfig, onSort }: P
 
     return (
         <div className="flex items-center px-5 py-4 border-b border-[#EEEEEE] text-sm font-medium text-[#666] bg-[#FAFAFA]">
-            <div className="w-[28%] text-[#333] text-base font-semibold">Jobs ({totalJobs})</div>
+            <div className="w-[24%] text-[#333] text-base font-semibold">Jobs ({totalJobs})</div>
 
-            <div className="w-[12%]">
+            <div className="w-[10%]">
                 <SortableHeader label="Recruiter" sortKey="recruiter" />
             </div>
 
-            <div className="w-[12%]">
+            <div className="w-[10%]">
                 <SortableHeader label="Hiring Manager" sortKey="hiring_manager" />
             </div>
 
@@ -53,7 +53,13 @@ export default function PipelineTableHeader({ totalJobs, sortConfig, onSort }: P
                 <SortableHeader label="In-review" sortKey="in_review_count" />
             </div>
             <div className="w-[8%] flex justify-center">
+                <SortableHeader label="Shortlisted" sortKey="shortlisted_count" />
+            </div>
+            <div className="w-[8%] flex justify-center">
                 <SortableHeader label="Interview" sortKey="interview_count" />
+            </div>
+            <div className="w-[8%] flex justify-center">
+                <SortableHeader label="Selected" sortKey="selected_count" />
             </div>
             <div className="w-[8%] flex justify-center">
                 <SortableHeader label="Offered" sortKey="offered_count" />

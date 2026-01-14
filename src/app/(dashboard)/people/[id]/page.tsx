@@ -742,7 +742,7 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                         </div>
 
                         <div className="text-xs text-gray-500 space-y-1 mb-6">
-                            <p>{candidate.city}, {candidate.country} <span className="text-gray-300">|</span> REF161M <span className="text-gray-300">|</span> <Link href={`/jobs/${candidate.job_id}`} className="text-blue-600 hover:underline">Job link ↗</Link></p>
+                            <p>{candidate.city}, {candidate.country}</p>
                             <p>From Default Career Page • {new Date(candidate.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                         </div>
 
@@ -842,8 +842,8 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
 
                         {/* Dialogs */}
                         <MoveToJobDialog
-                            isOpen={isMoveDialogOpen}
-                            onClose={() => setIsMoveDialogOpen(false)}
+                            open={isMoveDialogOpen}
+                            onOpenChange={setIsMoveDialogOpen}
                             currentJobId={candidate.job_id}
                             applicationId={candidate.application_id}
                             onSuccess={() => {
@@ -961,21 +961,7 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                         </div>
                     </div>
 
-                    {/* Meta Cards */}
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                        <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-                            <h4 className="font-medium text-gray-700">Consent status</h4>
-                            <span className="text-gray-400 text-xs">🔒</span>
-                        </div>
-                        <div className="p-4">
-                            <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                                You cannot request consent from this candidate as no privacy policy has been configured. Please contact your administrator.
-                            </p>
-                            <div className="flex items-center gap-2 text-xs text-orange-600 font-medium bg-orange-50 p-2 rounded border border-orange-100">
-                                <span>⚠️</span> Consent required
-                            </div>
-                        </div>
-                    </div>
+
 
 
 

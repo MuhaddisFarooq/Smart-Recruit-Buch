@@ -185,7 +185,7 @@ export default function CandidateJobsPage() {
                                     <span className="px-3 py-1 bg-neutral-100 text-neutral-600 text-xs font-semibold rounded-full uppercase tracking-wide">
                                         {job.type_of_employment || "Full-time"}
                                     </span>
-                                    {job.has_applied && (
+                                    {!!job.has_applied && (
                                         <span className="ml-2 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full uppercase tracking-wide flex items-center gap-1">
                                             Applied
                                         </span>

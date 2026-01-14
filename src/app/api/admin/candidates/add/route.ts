@@ -48,8 +48,8 @@ export async function POST(req: Request) {
             ]);
         } else {
             // Create New User
-            // Generate a random password hash for now
-            const dummyHash = await bcrypt.hash(Math.random().toString(36), 10);
+            // Generate default password hash (Buch2026)
+            const dummyHash = await bcrypt.hash("Buch2026", 10);
             const result = await execute(`
                 INSERT INTO users (name, email, password, phone, city, resume_url, linkedin_url, avatar_url, role)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'candidate')

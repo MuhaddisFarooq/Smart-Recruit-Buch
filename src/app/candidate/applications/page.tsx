@@ -27,9 +27,11 @@ const statusConfig: { [key: string]: { color: string; bg: string; border: string
     reviewed: { color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100", icon: AlertCircle, label: "Reviewed" },
     shortlisted: { color: "text-[#b9d36c]", bg: "bg-[#b9d36c]/10", border: "border-[#b9d36c]/20", icon: CheckCircle, label: "Shortlisted" },
     interview: { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-100", icon: AlertCircle, label: "Interview" },
-    offered: { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", icon: CheckCircle, label: "Offer Extended" },
+    offered: { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", icon: CheckCircle, label: "Offered" },
     hired: { color: "text-green-700", bg: "bg-green-100", border: "border-green-200", icon: CheckCircle, label: "Hired" },
     rejected: { color: "text-red-600", bg: "bg-red-50", border: "border-red-100", icon: XCircle, label: "Not Selected" },
+    withdrawn: { color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200", icon: XCircle, label: "Withdrawn" },
+    selected: { color: "text-[#b9d36c]", bg: "bg-[#b9d36c]/10", border: "border-[#b9d36c]/20", icon: CheckCircle, label: "Selected" },
 };
 
 const CUSTOM_GREEN = "text-[#b9d36c]";

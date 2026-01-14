@@ -39,7 +39,9 @@ export async function GET(
                 // Add aggregated counts for the dashboard
                 new_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status = 'new'", [id]) as any)[0].count,
                 in_review_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status = 'reviewed'", [id]) as any)[0].count,
+                shortlisted_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status = 'shortlisted'", [id]) as any)[0].count,
                 interview_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status = 'interview'", [id]) as any)[0].count,
+                selected_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status = 'selected'", [id]) as any)[0].count,
                 offered_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status = 'offered'", [id]) as any)[0].count,
                 hired_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status = 'hired'", [id]) as any)[0].count,
                 all_active_count: (await query("SELECT COUNT(*) as count FROM job_applications WHERE job_id = ? AND status NOT IN ('hired', 'rejected', 'withdrawn')", [id]) as any)[0].count,
@@ -71,6 +73,7 @@ export async function PATCH(
         const values: any[] = [];
 
         if (body.job_title !== undefined) { fields.push("job_title = ?"); values.push(body.job_title || null); }
+        if (body.department !== undefined) { fields.push("department = ?"); values.push(body.department || null); }
         if (body.location !== undefined) { fields.push("location = ?"); values.push(body.location || null); }
         if (body.status !== undefined) { fields.push("status = ?"); values.push(body.status || null); }
         if (body.work_location_type !== undefined) { fields.push("work_location_type = ?"); values.push(body.work_location_type || null); }

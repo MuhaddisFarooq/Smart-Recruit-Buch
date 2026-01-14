@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
 
     try {
         const users = await query(`
-            SELECT id, name, email, avatar_url 
+            SELECT id, name, email, avatar_url, designation 
             FROM users 
-            WHERE name LIKE ? OR email LIKE ?
+            WHERE (name LIKE ? OR email LIKE ?) AND role != 'candidate'
             LIMIT 5
         `, [`%${q}%`, `%${q}%`]);
 

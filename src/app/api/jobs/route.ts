@@ -37,7 +37,9 @@ export async function GET(req: NextRequest) {
                 (SELECT u.name FROM job_hiring_team ht JOIN users u ON ht.user_id = u.id WHERE ht.job_id = j.id AND ht.role = 'Hiring Manager' LIMIT 1) as hiring_manager,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'new') as new_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'reviewed') as in_review_count,
+                (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'shortlisted') as shortlisted_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'interview') as interview_count,
+                (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'selected') as selected_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'offered') as offered_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'hired') as hired_count,
                 ${userId ? `(SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.user_id = ${userId}) > 0` : 'FALSE'} as has_applied
@@ -59,6 +61,7 @@ export async function POST(req: NextRequest) {
 
         // Extract all fields with null fallback to prevent undefined
         const job_title = body.job_title || null;
+        const department = body.department || null;
         const location = body.location || null;
         const work_location_type = body.work_location_type || null;
         const job_language = body.job_language || null;
@@ -89,15 +92,16 @@ export async function POST(req: NextRequest) {
 
         const result = await execute(
             `INSERT INTO jobs (
-                job_title, location, work_location_type, job_language,
+                job_title, department, location, work_location_type, job_language,
                 company_description, description, qualifications, additional_information,
                 video_url, industry, job_function, experience_level, type_of_employment,
                 salary_from, salary_to, currency, salary_period, hiring_team,
                 city, state, postal_code, country, auto_unpublish_date,
                 status, addedBy, addedDate, updatedBy, updatedDate
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
             [
                 job_title,
+                department,
                 location,
                 work_location_type,
                 job_language,
@@ -126,7 +130,30 @@ export async function POST(req: NextRequest) {
             ]
         );
 
-        return NextResponse.json({ id: result.insertId, message: "Job created successfully" });
+        const jobId = (result as any).insertId;
+
+        // Insert hiring team members into job_hiring_team table
+        if (body.hiring_team && Array.isArray(body.hiring_team) && body.hiring_team.length > 0) {
+            const teamValues = body.hiring_team.map((member: any) => [
+                jobId,
+                member.user_id,
+                member.role
+            ]);
+
+            // Construct bulk insert query
+            const placeholders = teamValues.map(() => "(?, ?, ?)").join(", ");
+            const flatValues = teamValues.flat();
+
+            if (teamValues.length > 0) {
+                await execute(
+                    `INSERT INTO job_hiring_team (job_id, user_id, role) VALUES ${placeholders}
+                     ON DUPLICATE KEY UPDATE role = VALUES(role)`,
+                    flatValues
+                );
+            }
+        }
+
+        return NextResponse.json({ id: jobId, message: "Job created successfully" });
     } catch (error: any) {
         console.error("Error creating job:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

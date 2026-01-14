@@ -37,6 +37,7 @@ const SALARY_PERIODS = ["Monthly", "Yearly", "Hourly", "Weekly"];
 type JobData = {
     id: number;
     job_title: string;
+    department?: string;
     location: string;
     city: string;
     state: string;
@@ -69,6 +70,7 @@ export default function EditJobPage() {
     const [formData, setFormData] = useState<JobData>({
         id: 0,
         job_title: "",
+        department: "",
         location: "",
         city: "",
         state: "",
@@ -211,6 +213,20 @@ export default function EditJobPage() {
                             value={formData.job_title || ""}
                             onChange={(e) => updateField("job_title", e.target.value)}
                             className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                        />
+                    </div>
+
+                    {/* Department */}
+                    <div className="mb-4">
+                        <label className="block text-sm text-[#238740] mb-1">
+                            Department
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.department || ""}
+                            onChange={(e) => updateField("department", e.target.value)}
+                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                            placeholder="e.g. Engineering, Sales, Human Resources"
                         />
                     </div>
 

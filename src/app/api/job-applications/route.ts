@@ -67,15 +67,28 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        // Check if already applied
+        // Check if already applied or has active application
         if (userId) {
-            const existing = await query(
-                "SELECT id FROM job_applications WHERE job_id = ? AND user_id = ?",
-                [jobId, userId]
+            // Check for ANY active application
+            const activeApplications = await query(
+                `SELECT id, job_id, status FROM job_applications 
+                 WHERE user_id = ? 
+                 AND status NOT IN ('Rejected', 'Withdrawn')`,
+                [userId]
             );
 
-            if (Array.isArray(existing) && existing.length > 0) {
-                return NextResponse.json({ error: "You have already applied for this job" }, { status: 400 });
+            if (Array.isArray(activeApplications) && activeApplications.length > 0) {
+                const activeApp = (activeApplications as any[])[0];
+
+                // If trying to apply to the SAME job again
+                if (activeApp.job_id == jobId) {
+                    return NextResponse.json({ error: "You have already applied for this job." }, { status: 400 });
+                }
+
+                // If trying to apply to a NEW job while another is active
+                return NextResponse.json({
+                    error: "You already have an active application. You cannot apply for another job until your current application is resolved (Rejected or Withdrawn)."
+                }, { status: 400 });
             }
         }
 
@@ -145,6 +158,20 @@ export async function POST(req: NextRequest) {
                     edu.is_current ? 1 : 0,
                 ]
             );
+        }
+
+        // Update User's Designation and Department from the Job
+        if (userId) {
+            const jobDetails = await query("SELECT job_title, department FROM jobs WHERE id = ?", [jobId]);
+
+            if (Array.isArray(jobDetails) && jobDetails.length > 0) {
+                const job = (jobDetails as any[])[0];
+
+                await execute(
+                    "UPDATE users SET designation = ?, department = ? WHERE id = ?",
+                    [job.job_title, job.department, userId]
+                );
+            }
         }
 
         return NextResponse.json({

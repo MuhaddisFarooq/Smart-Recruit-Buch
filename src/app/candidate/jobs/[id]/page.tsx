@@ -136,7 +136,7 @@ export default function JobDetailPage() {
                         <div className="mb-8 text-white">
                             <div className="flex items-center gap-4 mb-4">
                                 <h1 className="text-4xl md:text-5xl font-bold tracking-tight">{job.job_title}</h1>
-                                {job.has_applied && (
+                                {!!job.has_applied && (
                                     <span className="px-4 py-1.5 bg-green-500/20 text-green-400 border border-green-500/50 text-sm font-bold rounded-full uppercase tracking-wide backdrop-blur-sm">
                                         Applied
                                     </span>
@@ -216,7 +216,7 @@ export default function JobDetailPage() {
                             >
                                 {job.has_applied ? "APPLIED" : "I'M INTERESTED"}
                             </button>
-                            {job.has_applied && (
+                            {!!job.has_applied && (
                                 <p className="text-center text-sm text-green-600 font-medium mb-4 bg-green-50 py-2 rounded-lg border border-green-100 flex items-center justify-center gap-2">
                                     <span className="h-2 w-2 rounded-full bg-green-500"></span>
                                     Job Already Applied

@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import { MoreVertical, Globe, Pencil, EyeOff, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import StagePillCell from "./StagePillCell";
 
 type Job = {
     id: number;
     job_title: string;
+    department?: string;
     location: string;
     status: string;
     recruiter?: string;
@@ -14,7 +16,9 @@ type Job = {
     addedBy?: string;
     new_count?: number;
     in_review_count?: number;
+    shortlisted_count?: number;
     interview_count?: number;
+    selected_count?: number;
     offered_count?: number;
     hired_count?: number;
 };
@@ -28,8 +32,13 @@ type JobRowProps = {
 };
 
 export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: JobRowProps) {
+    const router = useRouter();
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
+
+    const handleStatusClick = (status: string) => {
+        router.push(`/jobs/${job.id}?status=${status}`);
+    };
 
     const isPublished = job.status?.toLowerCase() === 'active' || job.status?.toLowerCase() === 'published';
 
@@ -49,9 +58,10 @@ export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: 
             className="flex items-center px-5 py-4 border-b border-[#F0F0F0] hover:bg-[#FAFAFA] cursor-pointer transition-colors"
         >
             {/* Job Info */}
-            <div className="w-[28%] min-w-0 pr-3">
+            <div className="w-[22%] min-w-0 pr-3">
                 <p className="text-base font-semibold text-[#333] truncate">{job.job_title || "Untitled Job"}</p>
-                <p className="text-sm text-[#666] truncate mt-1">{job.location || "No location"}</p>
+                {job.department && <p className="text-sm text-[#333] truncate mt-0.5">{job.department}</p>}
+                <p className="text-sm text-[#666] truncate mt-0.5">{job.location || "No location"}</p>
                 <div className="flex items-center gap-2 mt-1.5">
                     <span className={`w-2.5 h-2.5 rounded-full ${isPublished ? 'bg-[#238740]' : 'bg-[#999]'}`} />
                     <span className="text-sm text-[#666]">{isPublished ? 'Published' : 'Not Published'}</span>
@@ -59,34 +69,64 @@ export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: 
             </div>
 
             {/* Recruiter */}
-            <div className="w-[12%] text-sm text-[#555] truncate pr-2">
+            <div className="w-[9%] text-sm text-[#555] truncate pr-2">
                 {job.recruiter || job.addedBy || '-'}
             </div>
 
             {/* Hiring Manager */}
-            <div className="w-[12%] text-sm text-[#555] truncate pr-2">
+            <div className="w-[9%] text-sm text-[#555] truncate pr-2">
                 {job.hiring_manager || '-'}
             </div>
 
             {/* Stage Pills */}
-            <div className="w-[8%]">
-                <StagePillCell count={job.new_count ?? null} hasDropdown={!!job.new_count} />
+            <div className="w-[7%]">
+                <StagePillCell
+                    count={job.new_count ?? null}
+                    hasDropdown={!!job.new_count}
+                    onClick={() => handleStatusClick('new')}
+                />
             </div>
-            <div className="w-[8%]">
-                <StagePillCell count={job.in_review_count ?? null} hasDropdown={!!job.in_review_count} />
+            <div className="w-[7%]">
+                <StagePillCell
+                    count={job.in_review_count ?? null}
+                    hasDropdown={!!job.in_review_count}
+                    onClick={() => handleStatusClick('reviewed')}
+                />
             </div>
-            <div className="w-[8%]">
-                <StagePillCell count={job.interview_count ?? null} hasDropdown={!!job.interview_count} />
+            <div className="w-[7%]">
+                <StagePillCell
+                    count={job.shortlisted_count ?? null}
+                    onClick={() => handleStatusClick('shortlisted')}
+                />
             </div>
-            <div className="w-[8%]">
-                <StagePillCell count={job.offered_count ?? null} />
+            <div className="w-[7%]">
+                <StagePillCell
+                    count={job.interview_count ?? null}
+                    hasDropdown={!!job.interview_count}
+                    onClick={() => handleStatusClick('interview')}
+                />
             </div>
-            <div className="w-[8%]">
-                <StagePillCell count={job.hired_count ?? null} />
+            <div className="w-[7%]">
+                <StagePillCell
+                    count={job.selected_count ?? null}
+                    onClick={() => handleStatusClick('selected')}
+                />
+            </div>
+            <div className="w-[7%]">
+                <StagePillCell
+                    count={job.offered_count ?? null}
+                    onClick={() => handleStatusClick('offered')}
+                />
+            </div>
+            <div className="w-[7%]">
+                <StagePillCell
+                    count={job.hired_count ?? null}
+                    onClick={() => handleStatusClick('hired')}
+                />
             </div>
 
             {/* Actions */}
-            <div className="w-[8%] flex items-center justify-end gap-1 relative" ref={menuRef}>
+            <div className="w-[6%] flex items-center justify-end gap-1 relative" ref={menuRef}>
                 <button
                     onClick={(e) => { e.stopPropagation(); }}
                     className="p-2 text-[#999] hover:text-[#666] rounded hover:bg-[#F0F0F0]"

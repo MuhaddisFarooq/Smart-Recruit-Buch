@@ -21,6 +21,8 @@ type Job = {
     new_count?: number;
     in_review_count?: number;
     interview_count?: number;
+    shortlisted_count?: number;
+    selected_count?: number;
     offered_count?: number;
     hired_count?: number;
 };

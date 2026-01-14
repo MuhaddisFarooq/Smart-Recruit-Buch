@@ -75,6 +75,19 @@ export async function GET(
     }
 }
 
+// Helper to get user ID
+async function getUserId(session: any) {
+    if (!session?.user) return null;
+    let userId = (session.user as any).id;
+    if (!userId && session.user.email) {
+        const rows = await query("SELECT id FROM users WHERE email = ?", [session.user.email]);
+        if (Array.isArray(rows) && rows.length > 0) {
+            userId = (rows[0] as any).id;
+        }
+    }
+    return userId;
+}
+
 // PATCH /api/job-applications/[id] - Update application status
 export async function PATCH(
     req: NextRequest,
@@ -86,6 +99,11 @@ export async function PATCH(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const userId = await getUserId(session);
+        if (!userId) {
+            return NextResponse.json({ error: "User not found" }, { status: 401 });
+        }
+
         const { id } = await params;
         const body = await req.json();
         const { status } = body;
@@ -95,7 +113,7 @@ export async function PATCH(
         }
 
         // Validate status enum
-        const validStatuses = ['new', 'reviewed', 'shortlisted', 'interview', 'offered', 'hired', 'rejected', 'withdrawn'];
+        const validStatuses = ['new', 'reviewed', 'shortlisted', 'interview', 'selected', 'offered', 'hired', 'rejected', 'withdrawn'];
         if (!validStatuses.includes(status)) {
             return NextResponse.json({ error: "Invalid status" }, { status: 400 });
         }
@@ -110,13 +128,10 @@ export async function PATCH(
         );
 
         // Log the status change
-        // TODO: Use actual user ID from session. Assuming 1 (Admin) for now.
-        const changedByUserId = 1;
-
         await execute(
             `INSERT INTO application_status_logs (application_id, previous_status, new_status, changed_by_user_id) 
              VALUES (?, ?, ?, ?)`,
-            [id, previousStatus, status, changedByUserId]
+            [id, previousStatus, status, userId]
         );
 
         // --- Notification Trigger ---
@@ -136,14 +151,14 @@ export async function PATCH(
                 const notificationMessage = `${candidate_name}'s application for ${job_title} was moved to ${status}.`;
 
                 // Notify the recruiter (user_id = 1 for demo)
+                // TODO: Notify the Job Owner or Hiring Manager instead of hardcoded 1
+                // For now, let's notify the current user (recruiter) to avoid foreign key errors if 1 doesn't exist
                 await execute(
                     `INSERT INTO notifications (user_id, type, title, message, data) VALUES (?, ?, ?, ?, ?)`,
-                    [1, 'info', notificationTitle, notificationMessage, JSON.stringify({ application_id: id, status })]
+                    [userId, 'info', notificationTitle, notificationMessage, JSON.stringify({ application_id: id, status })]
                 );
 
                 // --- Notify the Candidate ---
-                // We need the candidate's user_id. We can get it from the 'ja' table query above if we select it.
-                // Let's do a quick separate query or update the previous one. updating previous one is cleaner but separate is safer for now to avoid breaking destructuring.
                 const candidateRes = await query("SELECT user_id FROM job_applications WHERE id = ?", [id]);
                 if (candidateRes.length > 0) {
                     const candidateId = candidateRes[0].user_id;

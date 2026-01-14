@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { email, password, name } = body;
+        const { email, password, name, cnic, phone } = body;
 
-        if (!email || !password || !name) {
-            return NextResponse.json({ error: "Name, email, and password are required" }, { status: 400 });
+        if (!email || !password || !name || !cnic || !phone) {
+            return NextResponse.json({ error: "Name, email, password, CNIC, and phone are required" }, { status: 400 });
         }
 
         // Check if user already exists
@@ -27,14 +27,16 @@ export async function POST(req: NextRequest) {
 
         await execute(
             `INSERT INTO users (
-                email, password, role, status, name, addedDate, addedBy
-            ) VALUES (?, ?, ?, ?, ?, NOW(), ?)`,
+                email, password, role, status, name, cnic, phone, addedDate, addedBy
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
             [
                 email,
                 hashedPassword,
                 role,
                 status,
-                name, // Use provided name
+                name,
+                cnic,
+                phone,
                 'system' // addedBy
             ]
         );

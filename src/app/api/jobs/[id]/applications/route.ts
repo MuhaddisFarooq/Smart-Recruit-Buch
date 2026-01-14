@@ -43,7 +43,9 @@ export async function GET(
                 u.phone,
                 u.city,
                 u.country,
+                u.country,
                 u.avatar_url,
+                (SELECT COUNT(*) FROM interview_panels WHERE application_id = ja.id) as panel_member_count,
                 (
                     SELECT title 
                     FROM candidate_experience 

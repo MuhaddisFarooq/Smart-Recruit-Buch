@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
     MoreHorizontal,
     ArrowLeft,
@@ -49,7 +49,19 @@ import { Badge } from "@/components/ui/badge";
 import AddCandidateDialog from "@/components/jobs/AddCandidateDialog";
 import HiringTeamManager from "@/components/jobs/HiringTeamManager";
 import ScheduleInterviewDialog from "@/components/jobs/ScheduleInterviewDialog";
+import InterviewPanelDialog from "@/components/jobs/InterviewPanelDialog";
+import MoveToJobDialog from "@/components/jobs/MoveToJobDialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // --- Types ---
 
@@ -66,7 +78,9 @@ type JobData = {
     // Counters
     new_count: number;
     in_review_count: number;
+    shortlisted_count: number;
     interview_count: number;
+    selected_count: number;
     offered_count: number;
     hired_count: number;
     all_active_count: number;
@@ -110,12 +124,15 @@ type Application = {
     score?: number;
     last_status_change_by?: string;
     last_status_changer_role?: string;
+    panel_member_count?: number;
 };
 
 // --- Components ---
 
-const StatusCounterCard = ({ label, count, active = false }: { label: string, count: number, active?: boolean }) => (
-    <div className={`
+const StatusCounterCard = ({ label, count, active = false, onClick }: { label: string, count: number, active?: boolean, onClick?: () => void }) => (
+    <div
+        onClick={onClick}
+        className={`
         flex flex-col items-center justify-center p-3 rounded-lg border min-w-[100px] h-[72px] cursor-pointer transition-all
         ${active ? 'bg-white border-green-500 shadow-sm ring-1 ring-green-500' : 'bg-white border-gray-200 hover:border-gray-300'}
     `}>
@@ -124,7 +141,7 @@ const StatusCounterCard = ({ label, count, active = false }: { label: string, co
     </div>
 );
 
-const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDelete, onView, onSchedule }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDelete: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void }) => {
+const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplication, onDeleteCandidate, onView, onSchedule, onEditPanel, onMoveToJob }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDeleteApplication: (id: number) => void, onDeleteCandidate: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void, onEditPanel: (id: number) => void, onMoveToJob: (id: number) => void }) => {
     return (
         <div className="flex items-center py-4 px-4 hover:bg-gray-50 border-b border-gray-100 group transition-colors">
             {/* Checkbox */}
@@ -178,38 +195,54 @@ const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDelete, onVie
                         <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'hired')}>
                             Hire
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'withdrawn')}>
-                            Mark as withdrawn
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'interview')}>
+                        {app.status === 'withdrawn' ? (
+                            <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'reviewed')}>
+                                Unmark from withdrawn
+                            </DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'withdrawn')}>
+                                Mark as withdrawn
+                            </DropdownMenuItem>
+                        )}
+                        {app.status === 'shortlisted' ? (
+                            <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'reviewed')}>
+                                Remove from Shortlist
+                            </DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem onClick={() => onStatusChange(app.application_id, 'shortlisted')}>
+                                Mark as Shortlisted
+                            </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onSelect={() => onStatusChange(app.application_id, 'interview')}>
                             Invite to interview
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onSchedule(app.application_id)}>
-                            Invite to self-schedule
+                        <DropdownMenuItem onSelect={() => onEditPanel(app.application_id)}>
+                            Manage Panel ({app.panel_member_count || 0})
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
-                            Share
+                        <DropdownMenuItem onSelect={() => onStatusChange(app.application_id, 'selected')}>
+                            Mark as Selected
                         </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => onStatusChange(app.application_id, 'offered')}>
+                            Move to Offer
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
+
                         <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
                             Send message
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
+                        <DropdownMenuItem onClick={() => onMoveToJob(app.application_id)}>
                             Add to job
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
-                            Request consent
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
-                            Add employee badge
-                        </DropdownMenuItem>
+
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onDelete(app.application_id)}>
+                        <DropdownMenuItem onClick={() => onDeleteApplication(app.application_id)}>
                             Remove from this job
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600" onClick={() => toast.info("Deleting candidate profile is restricted")}>
+                        <DropdownMenuItem className="text-red-600" onClick={() => onDeleteCandidate(app.user_id)}>
                             Delete candidate
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600" onClick={() => onDelete(app.application_id)}>
+                        <DropdownMenuItem className="text-red-600" onClick={() => onDeleteApplication(app.application_id)}>
                             Delete job application
                         </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -233,7 +266,7 @@ const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDelete, onVie
             {/* Status */}
             <div className="w-[15%] px-2">
                 <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-700 capitalize">{app.status.replace('-', ' ')}</span>
+                    <span className="text-sm font-medium text-gray-700 capitalize">{app.status === 'reviewed' ? 'In-Review' : app.status.replace('-', ' ')}</span>
                     {app.last_status_change_by && (
                         <span className="text-[10px] text-gray-400">by {app.last_status_change_by}</span>
                     )}
@@ -269,6 +302,7 @@ const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDelete, onVie
 export default function JobManagementPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [job, setJob] = useState<JobData | null>(null);
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
@@ -287,14 +321,22 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     const [internalNotes, setInternalNotes] = useState("");
     const [isEditingNotes, setIsEditingNotes] = useState(false);
 
-    const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
-    const [schedulingApplicationId, setSchedulingApplicationId] = useState<number | null>(null);
+    const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+    const [scheduleAppId, setScheduleAppId] = useState<number | null>(null);
+
+    // Interview Panel State
+    const [isPanelOpen, setIsPanelOpen] = useState(false);
+    const [panelAppId, setPanelAppId] = useState<number | null>(null);
 
     const handleSchedule = (id: number) => {
-        setSchedulingApplicationId(id);
-        setIsScheduleDialogOpen(true);
+        setScheduleAppId(id);
+        setIsScheduleOpen(true);
     };
+    const [deleteAppId, setDeleteAppId] = useState<number | null>(null);
+    const [deleteCandidateId, setDeleteCandidateId] = useState<number | null>(null);
+    const [moveAppId, setMoveAppId] = useState<number | null>(null);
 
+    // Initial Data Fetch
     const fetchJobData = async () => {
         try {
             // Fetch Job Details (with counters)
@@ -322,12 +364,27 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
         fetchJobData();
     }, [resolvedParams.id]);
 
+    useEffect(() => {
+        const statusParam = searchParams.get('status');
+        if (statusParam) {
+            setSelectedStatuses([statusParam]);
+        }
+    }, [searchParams]);
+
+    const handleStatusCardClick = (status: string | null) => {
+        if (status) {
+            setSelectedStatuses([status]);
+        } else {
+            setSelectedStatuses([]);
+        }
+    };
+
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
             setSelectedAppIds(filteredApplications.map(app => app.application_id));
         } else {
             setSelectedAppIds([]);
-        }
+        };
     };
 
     const handleSelectOne = (id: number) => {
@@ -400,7 +457,12 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
 
             // Status Filter
             if (selectedStatuses.length > 0) {
-                matches = matches && selectedStatuses.includes(app.status);
+                if (selectedStatuses.includes('all_active')) {
+                    // Filter for active statuses (exclude rejected, withdrawn, hired)
+                    matches = matches && !['rejected', 'withdrawn', 'hired'].includes(app.status.toLowerCase());
+                } else {
+                    matches = matches && selectedStatuses.some(s => s.toLowerCase() === app.status?.toLowerCase());
+                }
             }
 
             // Location Filter
@@ -448,18 +510,32 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
             });
         }
         return result;
-    }, [applications, searchQuery, sortConfig]);
+    }, [applications, searchQuery, selectedStatuses, selectedLocations, scoreFilter, sortConfig]);
 
-    const handleStatusChange = async (appId: number, newStatus: string) => {
+    const updateStatus = async (appId: number, status: string) => {
+        if (status === 'interview') {
+            setScheduleAppId(appId);
+            setIsScheduleOpen(true);
+            return;
+        }
+
+        if (status === 'selected') {
+            const app = applications.find(a => a.application_id === appId);
+            if (app && (app.panel_member_count || 0) < 2) {
+                toast.error("Minimum 2 panel members required to select candidate");
+                return;
+            }
+        }
+
         try {
             const res = await fetch(`/api/job-applications/${appId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({ status: status }),
             });
 
             if (res.ok) {
-                toast.success(`Candidate moved to ${newStatus}`);
+                toast.success(`Candidate moved to ${status}`);
                 fetchJobData(); // Refresh counts and list
             } else {
                 toast.error("Failed to update status");
@@ -485,11 +561,15 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
         }
     };
 
-    const handleDeleteApplication = async (appId: number) => {
-        if (!confirm("Are you sure you want to delete this application? This cannot be undone.")) return;
+    const handleDeleteApplication = (appId: number) => {
+        setDeleteAppId(appId);
+    };
+
+    const confirmDeleteApplication = async () => {
+        if (!deleteAppId) return;
 
         try {
-            const res = await fetch(`/api/job-applications/${appId}`, {
+            const res = await fetch(`/api/job-applications/${deleteAppId}`, {
                 method: "DELETE",
             });
 
@@ -501,7 +581,49 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
             }
         } catch (error) {
             toast.error("An error occurred");
+        } finally {
+            setDeleteAppId(null);
         }
+    };
+
+    const handleDeleteCandidate = (userId: number) => {
+        setDeleteCandidateId(userId);
+    };
+
+    const confirmDeleteCandidate = async () => {
+        if (!deleteCandidateId) return;
+
+        try {
+            const res = await fetch(`/api/users/${deleteCandidateId}`, {
+                method: "DELETE",
+            });
+
+            if (res.ok) {
+                toast.success("Candidate deleted permanently");
+                fetchJobData();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || "Failed to delete candidate");
+            }
+        } catch (error) {
+            toast.error("An error occurred");
+        } finally {
+            setDeleteCandidateId(null);
+        }
+    };
+
+    const handleMoveToJob = (appId: number) => {
+        setMoveAppId(appId);
+    };
+
+    const handleViewProfile = (candidate: Application) => {
+        setSelectedCandidate(candidate);
+        setDrawerOpen(true);
+    };
+
+    const handleEditPanel = (appId: number) => {
+        setPanelAppId(appId);
+        setIsPanelOpen(true);
     };
 
     if (loading) {
@@ -622,16 +744,68 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
 
                     {/* Pipeline Counters */}
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-                        <StatusCounterCard label="New" count={job.new_count || 0} active />
-                        <StatusCounterCard label="In-review" count={job.in_review_count || 0} />
-                        <StatusCounterCard label="Interview" count={job.interview_count || 0} />
-                        <StatusCounterCard label="Offered" count={job.offered_count || 0} />
-                        <StatusCounterCard label="Hired" count={job.hired_count || 0} />
+                        <StatusCounterCard
+                            label="New"
+                            count={job.new_count || 0}
+                            active={selectedStatuses.includes('new')}
+                            onClick={() => handleStatusCardClick('new')}
+                        />
+                        <StatusCounterCard
+                            label="In-review"
+                            count={job.in_review_count || 0}
+                            active={selectedStatuses.includes('reviewed')}
+                            onClick={() => handleStatusCardClick('reviewed')}
+                        />
+                        <StatusCounterCard
+                            label="Shortlisted"
+                            count={job.shortlisted_count || 0}
+                            active={selectedStatuses.includes('shortlisted')}
+                            onClick={() => handleStatusCardClick('shortlisted')}
+                        />
+                        <StatusCounterCard
+                            label="Interview"
+                            count={job.interview_count || 0}
+                            active={selectedStatuses.includes('interview')}
+                            onClick={() => handleStatusCardClick('interview')}
+                        />
+                        <StatusCounterCard
+                            label="Selected"
+                            count={job.selected_count || 0}
+                            active={selectedStatuses.includes('selected')}
+                            onClick={() => handleStatusCardClick('selected')}
+                        />
+                        <StatusCounterCard
+                            label="Offered"
+                            count={job.offered_count || 0}
+                            active={selectedStatuses.includes('offered')}
+                            onClick={() => handleStatusCardClick('offered')}
+                        />
+                        <StatusCounterCard
+                            label="Hired"
+                            count={job.hired_count || 0}
+                            active={selectedStatuses.includes('hired')}
+                            onClick={() => handleStatusCardClick('hired')}
+                        />
                         {/* Spacer or Divider */}
                         <div className="w-px bg-gray-200 mx-1 h-[72px]"></div>
-                        <StatusCounterCard label="All Active" count={job.all_active_count || 0} />
-                        <StatusCounterCard label="Withdrawn" count={job.withdrawn_count || 0} />
-                        <StatusCounterCard label="Rejected" count={job.rejected_count || 0} />
+                        <StatusCounterCard
+                            label="All Active"
+                            count={job.all_active_count || 0}
+                            active={selectedStatuses.includes('all_active')}
+                            onClick={() => handleStatusCardClick('all_active')}
+                        />
+                        <StatusCounterCard
+                            label="Withdrawn"
+                            count={job.withdrawn_count || 0}
+                            active={selectedStatuses.includes('withdrawn')}
+                            onClick={() => handleStatusCardClick('withdrawn')}
+                        />
+                        <StatusCounterCard
+                            label="Rejected"
+                            count={job.rejected_count || 0}
+                            active={selectedStatuses.includes('rejected')}
+                            onClick={() => handleStatusCardClick('rejected')}
+                        />
                     </div>
                 </div>
             </div>
@@ -754,7 +928,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                                 );
                                             }}>
                                                 <Checkbox checked={selectedStatuses.includes(status)} />
-                                                <span className="capitalize text-sm">{status.replace('-', ' ')}</span>
+                                                <span className="capitalize text-sm">{status === 'reviewed' ? 'In-Review' : status.replace('-', ' ')}</span>
                                             </div>
                                         ))}
                                         {selectedStatuses.length > 0 && (
@@ -873,13 +1047,13 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                             app={app}
                                             selected={selectedAppIds.includes(app.application_id)}
                                             onSelect={handleSelectOne}
-                                            onStatusChange={handleStatusChange}
-                                            onDelete={handleDeleteApplication}
-                                            onView={(candidate) => {
-                                                setSelectedCandidate(candidate);
-                                                setDrawerOpen(true);
-                                            }}
+                                            onStatusChange={updateStatus}
+                                            onDeleteApplication={handleDeleteApplication}
+                                            onDeleteCandidate={handleDeleteCandidate}
+                                            onView={handleViewProfile}
                                             onSchedule={handleSchedule}
+                                            onEditPanel={handleEditPanel}
+                                            onMoveToJob={handleMoveToJob}
                                         />
                                     ))
                                 )}
@@ -1045,7 +1219,6 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                         placeholder="Add additional notes to this job."
                                         value={internalNotes}
                                         onChange={(e) => setInternalNotes(e.target.value)}
-                                        onFocus={() => setIsEditingNotes(true)}
                                     />
                                     {isEditingNotes && (
                                         <div className="flex gap-2 mt-4">
@@ -1222,6 +1395,66 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                     jobTitle={job.job_title}
                 />
             )}
+
+            {/* Interview Schedule Dialog */}
+            <ScheduleInterviewDialog
+                isOpen={isScheduleOpen}
+                onClose={() => setIsScheduleOpen(false)}
+                applicationId={scheduleAppId}
+                onSuccess={fetchJobData}
+            />
+
+            {/* Interview Panel Dialog */}
+            <InterviewPanelDialog
+                isOpen={isPanelOpen}
+                onClose={() => setIsPanelOpen(false)}
+                applicationId={panelAppId}
+            />
+            {/* Delete Application Dialog */}
+            <AlertDialog open={!!deleteAppId} onOpenChange={(open) => !open && setDeleteAppId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Job Application?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this job application? This action cannot be undone and all data associated with this specific application will be lost.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteApplication} className="bg-red-600 hover:bg-red-700">
+                            Delete Application
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Delete Candidate Dialog */}
+            <AlertDialog open={!!deleteCandidateId} onOpenChange={(open) => !open && setDeleteCandidateId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Candidate Permanently?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this candidate? This will permanently delete their user account, profile, and ALL applications they have submitted. This action CANNOT be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteCandidate} className="bg-red-600 hover:bg-red-700">
+                            Delete Candidate
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Move to Job Dialog */}
+            <MoveToJobDialog
+                open={!!moveAppId}
+                onOpenChange={(open) => !open && setMoveAppId(null)}
+                applicationId={moveAppId}
+                currentJobId={job.id}
+                onSuccess={fetchJobData}
+            />
+
         </div>
     );
 }
