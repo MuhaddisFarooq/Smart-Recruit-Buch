@@ -149,7 +149,7 @@ const StatusCounterCard = ({ label, count, active = false, onClick }: { label: s
     </div>
 );
 
-const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplication, onDeleteCandidate, onView, onSchedule, onEditPanel, onMoveToJob, onGenerateOffer, onGenerateAppointment, onGenerateJoiningForm }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDeleteApplication: (id: number) => void, onDeleteCandidate: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void, onEditPanel: (id: number) => void, onMoveToJob: (id: number) => void, onGenerateOffer: (id: number) => void, onGenerateAppointment: (id: number) => void, onGenerateJoiningForm: (id: number) => void }) => {
+const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplication, onDeleteCandidate, onView, onSchedule, onEditPanel, onMoveToJob, onGenerateOffer, onGenerateAppointment, onGenerateJoiningForm }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDeleteApplication: (id: number) => void, onDeleteCandidate: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void, onEditPanel: (id: number) => void, onMoveToJob: (id: number) => void, onGenerateOffer: (id: number) => void, onGenerateAppointment: (id: number) => void, onGenerateJoiningForm: (id: number, type?: "joining" | "hostel" | "transport") => void }) => {
     return (
         <div className="flex items-center py-4 px-4 hover:bg-gray-50 border-b border-gray-100 group transition-colors">
             {/* Checkbox */}
@@ -243,8 +243,14 @@ const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplica
                                 <DropdownMenuItem onSelect={() => onGenerateAppointment(app.application_id)}>
                                     Generate Appointment Letter
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => onGenerateJoiningForm(app.application_id)}>
+                                <DropdownMenuItem onSelect={() => onGenerateJoiningForm(app.application_id, "joining")}>
                                     Generate Joining Form
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => onGenerateJoiningForm(app.application_id, "hostel")}>
+                                    Generate Hostel Form
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => onGenerateJoiningForm(app.application_id, "transport")}>
+                                    Generate Transport Form
                                 </DropdownMenuItem>
                             </>
                         )}
@@ -362,6 +368,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     // Joining Form Dialog State
     const [isJoiningFormDialogOpen, setIsJoiningFormDialogOpen] = useState(false);
     const [joiningFormCandidate, setJoiningFormCandidate] = useState<any>(null);
+    const [joiningFormType, setJoiningFormType] = useState<"joining" | "hostel" | "transport">("joining");
 
     const handleSchedule = (id: number) => {
         setScheduleAppId(id);
@@ -689,7 +696,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
         }
     };
 
-    const handleGenerateJoiningForm = (appId: number) => {
+    const handleGenerateJoiningForm = (appId: number, type: "joining" | "hostel" | "transport" = "joining") => {
         const app = applications.find(a => a.application_id === appId);
         if (app && job) {
             setJoiningFormCandidate({
@@ -697,6 +704,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                 job_title: job.job_title,
                 department: job.department,
             });
+            setJoiningFormType(type);
             setIsJoiningFormDialogOpen(true);
         }
     };
@@ -1560,6 +1568,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                 open={isJoiningFormDialogOpen}
                 onOpenChange={setIsJoiningFormDialogOpen}
                 candidate={joiningFormCandidate}
+                formType={joiningFormType}
                 onSuccess={(url) => {
                     fetchJobData();
                     setJoiningFormCandidate(null);

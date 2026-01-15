@@ -32,6 +32,8 @@ export async function GET(
                 ja.appointment_letter_url,
                 ja.signed_appointment_letter_url,
                 ja.joining_form_url,
+                ja.hostel_form_url,
+                ja.transport_form_url,
                 u.avatar_url,
                 COALESCE(ja.resume_path, ja.resume_url, u.resume_url) as resume_url,
                 u.name,

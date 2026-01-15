@@ -18,17 +18,33 @@ export async function POST(req: NextRequest) {
         const formData = await req.formData();
         const applicationId = formData.get("applicationId") as string;
         const dataStr = formData.get("data") as string;
+        const type = (formData.get("type") as string) || "joining"; // Default to joining
         const data = JSON.parse(dataStr);
 
         if (!applicationId) {
             return NextResponse.json({ error: "Application ID required" }, { status: 400 });
         }
 
+        // Determine Template and Column based on Type
+        let templateName = "Joining_Form.docx";
+        let dbColumn = "joining_form_url";
+        let outputFolder = "joining_forms";
+
+        if (type === "hostel") {
+            templateName = "BIH-Hostel.docx";
+            dbColumn = "hostel_form_url";
+            outputFolder = "hostel_forms";
+        } else if (type === "transport") {
+            templateName = "BIH-Transport.docx";
+            dbColumn = "transport_form_url";
+            outputFolder = "transport_forms";
+        }
+
         // Load Template
-        const templatePath = path.join(process.cwd(), "public/letters", "Joining_Form.docx");
+        const templatePath = path.join(process.cwd(), "public/letters", templateName);
 
         if (!fs.existsSync(templatePath)) {
-            return NextResponse.json({ error: "Template Joining_Form.docx not found" }, { status: 404 });
+            return NextResponse.json({ error: `Template ${templateName} not found` }, { status: 404 });
         }
 
         const content = fs.readFileSync(templatePath, "binary");
@@ -46,16 +62,19 @@ export async function POST(req: NextRequest) {
         doc.render({
             name: data.name,
             EmployeeName: data.name,
+            FullName: data.name, // Common in some forms
 
             id: data.employee_id,
             ID: data.employee_id,
             employee_id: data.employee_id,
+            EmployeeID: data.employee_id,
 
             cnic: data.cnic,
             CNIC: data.cnic,
 
             designation: data.designation,
             Designation: data.designation,
+            PositionTitle: data.designation, // For Transport/Hostel if needed
 
             department: data.department,
             Department: data.department,
@@ -66,6 +85,10 @@ export async function POST(req: NextRequest) {
 
             contact_no: data.contact_no,
             ContactNo: data.contact_no,
+
+            hometown: data.hometown,
+            Hometown: data.hometown,
+            City: data.hometown,
         });
 
         const buf = doc.getZip().generate({
@@ -74,8 +97,8 @@ export async function POST(req: NextRequest) {
         });
 
         // Save Generated File
-        const fileName = `joining_form_${applicationId}_${Date.now()}.docx`;
-        const uploadDir = path.join(process.cwd(), "public/uploads/joining_forms");
+        const fileName = `${type}_form_${applicationId}_${Date.now()}.docx`;
+        const uploadDir = path.join(process.cwd(), "public/uploads", outputFolder);
 
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -83,23 +106,23 @@ export async function POST(req: NextRequest) {
 
         const filePath = path.join(uploadDir, fileName);
         fs.writeFileSync(filePath, buf);
-        const fileUrl = `/uploads/joining_forms/${fileName}`;
+        const fileUrl = `/uploads/${outputFolder}/${fileName}`;
 
-        // Update Database with joining_form_url
+        // Update Database with dynamic column
         try {
             await execute(
-                "UPDATE job_applications SET joining_form_url = ? WHERE id = ?",
+                `UPDATE job_applications SET ${dbColumn} = ? WHERE id = ?`,
                 [fileUrl, applicationId]
             );
         } catch (dbError: any) {
             // Lazy migration: If column doesn't exist, add it
             if (dbError.code === 'ER_BAD_FIELD_ERROR') {
-                console.log("Adding joining_form_url column...");
-                await execute("ALTER TABLE job_applications ADD COLUMN joining_form_url VARCHAR(255) NULL");
+                console.log(`Adding ${dbColumn} column...`);
+                await execute(`ALTER TABLE job_applications ADD COLUMN ${dbColumn} VARCHAR(255) NULL`);
 
                 // Retry update
                 await execute(
-                    "UPDATE job_applications SET joining_form_url = ? WHERE id = ?",
+                    `UPDATE job_applications SET ${dbColumn} = ? WHERE id = ?`,
                     [fileUrl, applicationId]
                 );
             } else {

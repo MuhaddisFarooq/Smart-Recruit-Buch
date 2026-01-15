@@ -14,9 +14,10 @@ interface JoiningFormDialogProps {
     onOpenChange: (open: boolean) => void;
     candidate: any;
     onSuccess: (url: string) => void;
+    formType?: "joining" | "hostel" | "transport";
 }
 
-export default function JoiningFormDialog({ open, onOpenChange, candidate, onSuccess }: JoiningFormDialogProps) {
+export default function JoiningFormDialog({ open, onOpenChange, candidate, onSuccess, formType = "joining" }: JoiningFormDialogProps) {
     const [loading, setLoading] = useState(false);
 
     // Form Data
@@ -28,6 +29,7 @@ export default function JoiningFormDialog({ open, onOpenChange, candidate, onSuc
         department: "",
         joining_date: new Date().toISOString().split('T')[0],
         contact_no: "",
+        hometown: "",
     });
 
     useEffect(() => {
@@ -40,6 +42,7 @@ export default function JoiningFormDialog({ open, onOpenChange, candidate, onSuc
                 contact_no: candidate.phone || "",
                 designation: candidate.job_title || "",
                 department: candidate.department || "",
+                hometown: candidate.city || "",
                 // Keep previous manually entered values if just reopening? No, reset is safer usually, or keep if state preserved.
                 // Let's reset but prioritize candidate data.
             }));
@@ -57,6 +60,7 @@ export default function JoiningFormDialog({ open, onOpenChange, candidate, onSuc
             const payload = new FormData();
             payload.append("applicationId", candidate.application_id || candidate.id);
             payload.append("data", JSON.stringify(formData));
+            payload.append("type", formType);
 
             const res = await fetch("/api/joining-forms/generate", {
                 method: "POST",
@@ -81,7 +85,11 @@ export default function JoiningFormDialog({ open, onOpenChange, candidate, onSuc
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>Generate Joining Form</DialogTitle>
+                    <DialogTitle>
+                        {formType === "hostel" ? "Generate Hostel Form" :
+                            formType === "transport" ? "Generate Transport Form" :
+                                "Generate Joining Form"}
+                    </DialogTitle>
                 </DialogHeader>
 
                 <div className="grid grid-cols-2 gap-4 py-4">
@@ -114,29 +122,33 @@ export default function JoiningFormDialog({ open, onOpenChange, candidate, onSuc
                             onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                         />
                     </div>
-                    <div className="space-y-2">
-                        <Label>CNIC</Label>
-                        <Input
-                            value={formData.cnic}
-                            onChange={(e) => setFormData({ ...formData, cnic: e.target.value })}
-                            placeholder="36103-..."
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Contact No.</Label>
-                        <Input
-                            value={formData.contact_no}
-                            onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Date of Joining</Label>
-                        <Input
-                            type="date"
-                            value={formData.joining_date}
-                            onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
-                        />
-                    </div>
+                    {formType === "joining" && (
+                        <>
+                            <div className="space-y-2">
+                                <Label>CNIC</Label>
+                                <Input
+                                    value={formData.cnic}
+                                    onChange={(e) => setFormData({ ...formData, cnic: e.target.value })}
+                                    placeholder="36103-..."
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Contact No.</Label>
+                                <Input
+                                    value={formData.contact_no}
+                                    onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Date of Joining</Label>
+                                <Input
+                                    type="date"
+                                    value={formData.joining_date}
+                                    onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <DialogFooter>

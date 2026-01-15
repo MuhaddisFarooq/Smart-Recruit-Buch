@@ -99,8 +99,10 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
     const [appointmentCandidate, setAppointmentCandidate] = useState<any>(null);
 
 
+
     const [isJoiningDialogOpen, setIsJoiningDialogOpen] = useState(false);
     const [joiningCandidate, setJoiningCandidate] = useState<any>(null);
+    const [joiningFormType, setJoiningFormType] = useState<"joining" | "hostel" | "transport">("joining");
 
     // Tab State
     const [activeTab, setActiveTab] = useState("Overview");
@@ -269,7 +271,7 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
         setIsAppointmentDialogOpen(true);
     };
 
-    const handleGenerateJoiningForm = () => {
+    const handleGenerateJoiningForm = (type: "joining" | "hostel" | "transport" = "joining") => {
         if (!candidate) return;
         setJoiningCandidate({
             ...candidate,
@@ -277,6 +279,7 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
             department: candidate.department,
             application_id: candidate.application_id
         });
+        setJoiningFormType(type);
         setIsJoiningDialogOpen(true);
     };
 
@@ -918,8 +921,14 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                                             <DropdownMenuItem onClick={handleGenerateAppointment}>
                                                 Generate Appointment Letter
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={handleGenerateJoiningForm}>
+                                            <DropdownMenuItem onClick={() => handleGenerateJoiningForm("joining")}>
                                                 Generate Joining Form
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleGenerateJoiningForm("hostel")}>
+                                                Generate Hostel Form
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleGenerateJoiningForm("transport")}>
+                                                Generate Transport Form
                                             </DropdownMenuItem>
                                         </>
                                     )}
@@ -1292,6 +1301,60 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                                 </div>
                             </div>
                         )}
+
+                        {(candidate as any).hostel_form_url && (
+                            <div className="px-4 pb-4 pt-0">
+                                <div
+                                    className="flex items-center gap-3 text-sm text-amber-600 hover:underline cursor-pointer group"
+                                    onClick={() => window.open((candidate as any).hostel_form_url, '_blank')}
+                                >
+                                    <FileText className="h-4 w-4 text-gray-400 group-hover:text-amber-600" />
+                                    Hostel Form
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <MoreHorizontal className="h-4 w-4 text-gray-300 ml-auto hover:text-gray-600" />
+                                            </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open((candidate as any).hostel_form_url, '_blank');
+                                            }}>
+                                                Download
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        )}
+
+                        {(candidate as any).transport_form_url && (
+                            <div className="px-4 pb-4 pt-0">
+                                <div
+                                    className="flex items-center gap-3 text-sm text-amber-600 hover:underline cursor-pointer group"
+                                    onClick={() => window.open((candidate as any).transport_form_url, '_blank')}
+                                >
+                                    <FileText className="h-4 w-4 text-gray-400 group-hover:text-amber-600" />
+                                    Transport Form
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <MoreHorizontal className="h-4 w-4 text-gray-300 ml-auto hover:text-gray-600" />
+                                            </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open((candidate as any).transport_form_url, '_blank');
+                                            }}>
+                                                Download
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
 
@@ -1304,6 +1367,7 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                 open={isJoiningDialogOpen}
                 onOpenChange={setIsJoiningDialogOpen}
                 candidate={joiningCandidate}
+                formType={joiningFormType}
                 onSuccess={(url) => {
                     fetchCandidate();
                     setJoiningCandidate(null);
