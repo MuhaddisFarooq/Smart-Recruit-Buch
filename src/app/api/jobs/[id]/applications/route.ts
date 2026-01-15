@@ -12,7 +12,7 @@ export async function GET(
 
         // 1. Fetch Job Details (Required for scoring)
         const jobRes = await query(`
-            SELECT job_title, description, qualifications, experience_level
+            SELECT job_title, description, qualifications, experience_level, type_of_employment
             FROM jobs WHERE id = ?
         `, [id]);
 
@@ -27,16 +27,38 @@ export async function GET(
             experience_level: jobData.experience_level || ""
         };
 
-        // 2. Fetch applications with candidate details
+        // 2. Fetch applications with candidate details using Lazy Migration Pattern
         // We join with users table for basic info
-        // We also want current company (from candidate_experience) and current title if available
-        const applications = await query(`
+        let applications;
+        try {
+            applications = await fetchApplicationsWithRetry(id);
+        } catch (error: any) {
+            // Lazy Migration: Check for missing columns
+            if (error.code === 'ER_BAD_FIELD_ERROR' || error.message?.includes("Unknown column 'ja.appointment_letter_url'")) {
+                console.warn("Lazy Migration: Adding missing appointment letter columns...");
+                await execute("ALTER TABLE job_applications ADD COLUMN appointment_letter_url VARCHAR(255) NULL");
+                await execute("ALTER TABLE job_applications ADD COLUMN signed_appointment_letter_url VARCHAR(255) NULL");
+                // Retry
+                applications = await fetchApplicationsWithRetry(id);
+            } else {
+                throw error;
+            }
+        }
+
+        // Helper function for the main query
+        async function fetchApplicationsWithRetry(jobId: string) {
+            return await query(`
             SELECT 
                 ja.id as application_id,
                 ja.user_id,
                 ja.status,
                 ja.applied_at,
                 ja.score,
+                ja.offered_salary,
+                ja.offer_letter_url,
+                ja.signed_offer_letter_url,
+                ja.appointment_letter_url,
+                ja.signed_appointment_letter_url,
                 COALESCE(ja.resume_path, ja.resume_url, u.resume_url) as resume_url,
                 u.name,
                 u.email,
@@ -44,6 +66,7 @@ export async function GET(
                 u.city,
                 u.country,
                 u.country,
+                u.cnic,
                 u.avatar_url,
                 (SELECT COUNT(*) FROM interview_panels WHERE application_id = ja.id) as panel_member_count,
                 (
@@ -79,7 +102,8 @@ export async function GET(
             FROM job_applications ja
             LEFT JOIN users u ON ja.user_id = u.id
             WHERE ja.job_id = ?
-        `, [id]);
+        `, [jobId]);
+        }
 
         // If no applications, return early
         if (!applications.length) {

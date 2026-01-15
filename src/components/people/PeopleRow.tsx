@@ -28,6 +28,7 @@ export type PersonApplication = {
     job_id: number;
     job_title: string;
     avatar_url?: string;
+    designation?: string;
 };
 
 interface PeopleRowProps {
@@ -110,9 +111,6 @@ export default function PeopleRow({ person, onStatusChange, onDelete, onView, on
                     <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem onClick={() => onAddToJob?.(person)}>
                             Add to job
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.info("Request consent feature coming soon")}>
-                            Request consent
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600" onClick={() => onDelete(person.application_id)}>

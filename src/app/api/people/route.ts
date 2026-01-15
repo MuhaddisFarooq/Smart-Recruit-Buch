@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
                 u.phone,
                 u.city,
                 u.country,
+                u.designation,
                 j.id as job_id,
                 j.job_title,
                 (SELECT title FROM candidate_experience WHERE user_id = u.id ORDER BY is_current DESC, start_date DESC LIMIT 1) as current_title,

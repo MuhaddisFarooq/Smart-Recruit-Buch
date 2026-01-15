@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FileText, MapPin, Clock, ExternalLink, CheckCircle, XCircle, AlertCircle, Building2, Calendar, Search, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +17,10 @@ type Application = {
     status: string;
     applied_at: string;
     interview_date?: string;
+    offer_letter_url?: string;
+    signed_offer_letter_url?: string;
+    appointment_letter_url?: string;
+    signed_appointment_letter_url?: string;
 };
 
 
@@ -42,6 +47,8 @@ export default function MyApplicationsPage() {
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [selectedFiles, setSelectedFiles] = useState<{ [key: number]: File }>({});
+    const [submitting, setSubmitting] = useState<{ [key: number]: boolean }>({});
 
     useEffect(() => {
         fetchApplications();
@@ -69,6 +76,86 @@ export default function MyApplicationsPage() {
             month: "long",
             day: "numeric",
         });
+    };
+
+    const handleFileSelect = (appId: number, file: File) => {
+        setSelectedFiles(prev => ({ ...prev, [appId]: file }));
+    };
+
+    const handleSubmitSignedOffer = async (appId: number) => {
+        const file = selectedFiles[appId];
+        if (!file) {
+            toast.error("Please select a file first");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        setSubmitting(prev => ({ ...prev, [appId]: true }));
+        try {
+            const res = await fetch(`/api/job-applications/${appId}/upload-offer`, {
+                method: "POST",
+                body: formData
+            });
+
+            if (res.ok) {
+                toast.success("Signed offer submitted successfully!");
+                // Clear selection
+                setSelectedFiles(prev => {
+                    const newState = { ...prev };
+                    delete newState[appId];
+                    return newState;
+                });
+                // Refresh to update status and hide form
+                fetchApplications();
+            } else {
+                toast.error("Failed to submit");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Upload error");
+        } finally {
+            setSubmitting(prev => ({ ...prev, [appId]: false }));
+        }
+    };
+
+    const handleSubmitSignedAppointment = async (appId: number) => {
+        const file = selectedFiles[appId];
+        if (!file) {
+            toast.error("Please select a file first");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        setSubmitting(prev => ({ ...prev, [appId]: true }));
+        try {
+            const res = await fetch(`/api/job-applications/${appId}/upload-appointment`, {
+                method: "POST",
+                body: formData
+            });
+
+            if (res.ok) {
+                toast.success("Signed appointment letter submitted successfully!");
+                // Clear selection
+                setSelectedFiles(prev => {
+                    const newState = { ...prev };
+                    delete newState[appId];
+                    return newState;
+                });
+                // Refresh to update status and hide form
+                fetchApplications();
+            } else {
+                toast.error("Failed to submit");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Upload error");
+        } finally {
+            setSubmitting(prev => ({ ...prev, [appId]: false }));
+        }
     };
 
     const filteredApplications = applications.filter(app =>
@@ -189,6 +276,143 @@ export default function MyApplicationsPage() {
                                                 <div className="mt-2 flex items-center text-sm text-orange-600 font-medium bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 w-fit">
                                                     <Clock className="h-4 w-4 mr-2" />
                                                     Interview: {new Date(app.interview_date).toLocaleString()}
+                                                </div>
+                                            )}
+
+                                            {app.status === 'offered' && (
+                                                <div className="mt-4 p-5 bg-emerald-50 rounded-xl border border-emerald-100 w-full md:max-w-md">
+                                                    <h4 className="font-semibold text-emerald-800 mb-4 flex items-center text-lg">
+                                                        <CheckCircle className="h-5 w-5 mr-2" />
+                                                        Congratulations! You have an offer.
+                                                    </h4>
+
+                                                    {app.signed_offer_letter_url ? (
+                                                        <div className="bg-white/80 p-4 rounded-lg border border-emerald-100/50 text-center">
+                                                            <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-2 text-emerald-600">
+                                                                <CheckCircle className="h-6 w-6" />
+                                                            </div>
+                                                            <p className="text-emerald-800 font-semibold mb-1">Signed Offer Submitted</p>
+                                                            <p className="text-emerald-600 text-sm">Thank you for accepting the offer!</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-4">
+                                                            {app.offer_letter_url && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="w-full justify-start bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-100 h-10"
+                                                                    onClick={() => window.open(app.offer_letter_url, '_blank')}
+                                                                >
+                                                                    <FileText className="h-4 w-4 mr-2" /> Download Offer Letter
+                                                                </Button>
+                                                            )}
+
+                                                            <div className="space-y-2 pt-2 border-t border-emerald-100">
+                                                                <label className="text-xs font-bold text-emerald-700 uppercase tracking-wide block">
+                                                                    Upload Signed Copy to Accept
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    <div className="relative flex-1">
+                                                                        <Input
+                                                                            type="file"
+                                                                            accept=".pdf,.docx,.doc"
+                                                                            onChange={(e) => {
+                                                                                const file = e.target.files?.[0];
+                                                                                if (file) handleFileSelect(app.id, file);
+                                                                            }}
+                                                                            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                                                                        />
+                                                                        <div className="bg-white border text-emerald-700 border-emerald-200 rounded-lg px-3 py-2 text-sm truncate flex items-center h-10">
+                                                                            {selectedFiles[app.id] ? (
+                                                                                <span className="text-neutral-900 font-medium truncate">{selectedFiles[app.id].name}</span>
+                                                                            ) : (
+                                                                                <span className="text-neutral-400">Choose file...</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <Button
+                                                                        onClick={() => handleSubmitSignedOffer(app.id)}
+                                                                        disabled={!selectedFiles[app.id] || submitting[app.id]}
+                                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4"
+                                                                    >
+                                                                        {submitting[app.id] ? "..." : "Submit"}
+                                                                    </Button>
+                                                                </div>
+                                                                <p className="text-[10px] text-emerald-600/80">
+                                                                    Please download, sign, scan and upload the document.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {app.status === 'hired' && (
+                                                <div className="mt-4 p-5 bg-green-50 rounded-xl border border-green-100 w-full md:max-w-md">
+                                                    <h4 className="font-semibold text-green-800 mb-4 flex items-center text-lg">
+                                                        <CheckCircle className="h-5 w-5 mr-2" />
+                                                        You are Hired!
+                                                    </h4>
+
+                                                    {app.signed_appointment_letter_url ? (
+                                                        <div className="bg-white/80 p-4 rounded-lg border border-green-100/50 text-center">
+                                                            <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2 text-green-600">
+                                                                <CheckCircle className="h-6 w-6" />
+                                                            </div>
+                                                            <p className="text-green-800 font-semibold mb-1">Signed Appointment Submitted</p>
+                                                            <p className="text-green-600 text-sm">Welcome to the team!</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-4">
+                                                            {app.appointment_letter_url ? (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="w-full justify-start bg-white border-green-200 text-green-700 hover:bg-green-100 h-10"
+                                                                    onClick={() => window.open(app.appointment_letter_url, '_blank')}
+                                                                >
+                                                                    <FileText className="h-4 w-4 mr-2" /> Download Appointment Letter
+                                                                </Button>
+                                                            ) : (
+                                                                <p className="text-sm text-green-600 italic">Appointment letter will be generated soon.</p>
+                                                            )}
+
+                                                            {app.appointment_letter_url && (
+                                                                <div className="space-y-2 pt-2 border-t border-green-100">
+                                                                    <label className="text-xs font-bold text-green-700 uppercase tracking-wide block">
+                                                                        Upload Signed Appointment Letter
+                                                                    </label>
+                                                                    <div className="flex gap-2">
+                                                                        <div className="relative flex-1">
+                                                                            <Input
+                                                                                type="file"
+                                                                                accept=".pdf,.docx,.doc"
+                                                                                onChange={(e) => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (file) handleFileSelect(app.id, file);
+                                                                                }}
+                                                                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                                                                            />
+                                                                            <div className="bg-white border text-green-700 border-green-200 rounded-lg px-3 py-2 text-sm truncate flex items-center h-10">
+                                                                                {selectedFiles[app.id] ? (
+                                                                                    <span className="text-neutral-900 font-medium truncate">{selectedFiles[app.id].name}</span>
+                                                                                ) : (
+                                                                                    <span className="text-neutral-400">Choose file...</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <Button
+                                                                            onClick={() => handleSubmitSignedAppointment(app.id)}
+                                                                            disabled={!selectedFiles[app.id] || submitting[app.id]}
+                                                                            className="bg-green-600 hover:bg-green-700 text-white font-bold h-10 px-4"
+                                                                        >
+                                                                            {submitting[app.id] ? "..." : "Submit"}
+                                                                        </Button>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-green-600/80">
+                                                                        Please download, sign, scan and upload the document.
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

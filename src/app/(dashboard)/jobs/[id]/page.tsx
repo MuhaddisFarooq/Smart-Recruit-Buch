@@ -51,6 +51,9 @@ import HiringTeamManager from "@/components/jobs/HiringTeamManager";
 import ScheduleInterviewDialog from "@/components/jobs/ScheduleInterviewDialog";
 import InterviewPanelDialog from "@/components/jobs/InterviewPanelDialog";
 import MoveToJobDialog from "@/components/jobs/MoveToJobDialog";
+import OfferDialog from "@/components/jobs/OfferDialog";
+import AppointmentDialog from "@/components/jobs/AppointmentDialog";
+import JoiningFormDialog from "@/components/jobs/JoiningFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     AlertDialog,
@@ -125,6 +128,11 @@ type Application = {
     last_status_change_by?: string;
     last_status_changer_role?: string;
     panel_member_count?: number;
+    offered_salary?: string;
+    offer_letter_url?: string;
+    signed_offer_letter_url?: string;
+    appointment_letter_url?: string;
+    signed_appointment_letter_url?: string;
 };
 
 // --- Components ---
@@ -141,7 +149,7 @@ const StatusCounterCard = ({ label, count, active = false, onClick }: { label: s
     </div>
 );
 
-const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplication, onDeleteCandidate, onView, onSchedule, onEditPanel, onMoveToJob }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDeleteApplication: (id: number) => void, onDeleteCandidate: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void, onEditPanel: (id: number) => void, onMoveToJob: (id: number) => void }) => {
+const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplication, onDeleteCandidate, onView, onSchedule, onEditPanel, onMoveToJob, onGenerateOffer, onGenerateAppointment, onGenerateJoiningForm }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDeleteApplication: (id: number) => void, onDeleteCandidate: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void, onEditPanel: (id: number) => void, onMoveToJob: (id: number) => void, onGenerateOffer: (id: number) => void, onGenerateAppointment: (id: number) => void, onGenerateJoiningForm: (id: number) => void }) => {
     return (
         <div className="flex items-center py-4 px-4 hover:bg-gray-50 border-b border-gray-100 group transition-colors">
             {/* Checkbox */}
@@ -225,6 +233,21 @@ const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplica
                         <DropdownMenuItem onSelect={() => onStatusChange(app.application_id, 'offered')}>
                             Move to Offer
                         </DropdownMenuItem>
+                        {app.status === 'offered' && (
+                            <DropdownMenuItem onSelect={() => onGenerateOffer(app.application_id)}>
+                                Generate Offer Letter
+                            </DropdownMenuItem>
+                        )}
+                        {app.status === 'hired' && (
+                            <>
+                                <DropdownMenuItem onSelect={() => onGenerateAppointment(app.application_id)}>
+                                    Generate Appointment Letter
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => onGenerateJoiningForm(app.application_id)}>
+                                    Generate Joining Form
+                                </DropdownMenuItem>
+                            </>
+                        )}
 
                         <DropdownMenuSeparator />
 
@@ -327,6 +350,18 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     // Interview Panel State
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelAppId, setPanelAppId] = useState<number | null>(null);
+
+    // Offer Dialog State
+    const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false);
+    const [offerCandidate, setOfferCandidate] = useState<any>(null);
+
+    // Appointment Dialog State
+    const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
+    const [appointmentCandidate, setAppointmentCandidate] = useState<any>(null);
+
+    // Joining Form Dialog State
+    const [isJoiningFormDialogOpen, setIsJoiningFormDialogOpen] = useState(false);
+    const [joiningFormCandidate, setJoiningFormCandidate] = useState<any>(null);
 
     const handleSchedule = (id: number) => {
         setScheduleAppId(id);
@@ -624,6 +659,46 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     const handleEditPanel = (appId: number) => {
         setPanelAppId(appId);
         setIsPanelOpen(true);
+    };
+
+    const handleGenerateOffer = (appId: number) => {
+        const app = applications.find(a => a.application_id === appId);
+        if (app && job) {
+            setOfferCandidate({
+                ...app,
+                job_title: job.job_title,
+                department: job.department,
+                salary_from: job.salary_from,
+            });
+            setIsOfferDialogOpen(true);
+        }
+    };
+
+    const handleGenerateAppointment = (appId: number) => {
+        const app = applications.find(a => a.application_id === appId);
+        if (app && job) {
+            setAppointmentCandidate({
+                ...app,
+                job_title: job.job_title,
+                department: job.department,
+                salary_from: job.salary_from,
+                offered_salary: app.offered_salary,
+                type_of_employment: job.type_of_employment,
+            });
+            setIsAppointmentDialogOpen(true);
+        }
+    };
+
+    const handleGenerateJoiningForm = (appId: number) => {
+        const app = applications.find(a => a.application_id === appId);
+        if (app && job) {
+            setJoiningFormCandidate({
+                ...app,
+                job_title: job.job_title,
+                department: job.department,
+            });
+            setIsJoiningFormDialogOpen(true);
+        }
     };
 
     if (loading) {
@@ -1054,6 +1129,9 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                             onSchedule={handleSchedule}
                                             onEditPanel={handleEditPanel}
                                             onMoveToJob={handleMoveToJob}
+                                            onGenerateOffer={handleGenerateOffer}
+                                            onGenerateAppointment={handleGenerateAppointment}
+                                            onGenerateJoiningForm={handleGenerateJoiningForm}
                                         />
                                     ))
                                 )}
@@ -1453,6 +1531,39 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                 applicationId={moveAppId}
                 currentJobId={job.id}
                 onSuccess={fetchJobData}
+            />
+
+            {/* Offer Dialog */}
+            <OfferDialog
+                open={isOfferDialogOpen}
+                onOpenChange={setIsOfferDialogOpen}
+                candidate={offerCandidate}
+                onSuccess={(url) => {
+                    fetchJobData();
+                    setOfferCandidate(null);
+                }}
+            />
+
+            {/* Appointment Dialog */}
+            <AppointmentDialog
+                open={isAppointmentDialogOpen}
+                onOpenChange={setIsAppointmentDialogOpen}
+                candidate={appointmentCandidate}
+                onSuccess={(url) => {
+                    fetchJobData();
+                    setAppointmentCandidate(null);
+                }}
+            />
+
+            {/* Joining Form Dialog */}
+            <JoiningFormDialog
+                open={isJoiningFormDialogOpen}
+                onOpenChange={setIsJoiningFormDialogOpen}
+                candidate={joiningFormCandidate}
+                onSuccess={(url) => {
+                    fetchJobData();
+                    setJoiningFormCandidate(null);
+                }}
             />
 
         </div>

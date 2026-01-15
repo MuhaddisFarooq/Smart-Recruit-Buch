@@ -48,7 +48,6 @@ export async function POST(
         if (!userId) {
             return NextResponse.json({ error: "User ID not found in session" }, { status: 400 });
         }
-
         // Check for active applications
         const activeApplications = await query(
             `SELECT id, job_id, status FROM job_applications 
@@ -155,7 +154,7 @@ export async function POST(
         // 4. Create Application
         await execute(
             `INSERT INTO job_applications (job_id, user_id, resume_path, message, status, applied_at)
-         VALUES (?, ?, ?, ?, 'Applied', NOW())`,
+         VALUES (?, ?, ?, ?, 'new', NOW())`,
             [jobId, userId, resumeUrl || null, message || null]
         );
 

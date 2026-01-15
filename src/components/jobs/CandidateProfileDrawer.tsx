@@ -53,6 +53,7 @@ type CandidateProfileDrawerProps = {
         applied_at: string;
         status: string;
         resume_url: string;
+        designation?: string;
         experience_list?: Experience[]; // Updated to accept JSON list
         education_list?: Education[];
         avatar_url?: string;
@@ -94,7 +95,10 @@ export default function CandidateProfileDrawer({ open, onOpenChange, candidate }
                             <div className="flex justify-between items-start">
                                 <div>
                                     <SheetTitle className="text-xl font-bold text-gray-900 leading-tight">{candidate.name}</SheetTitle>
-                                    <p className="text-sm text-gray-500">{candidate.current_title} at {candidate.current_company}</p>
+                                    <p className="text-sm text-gray-500">
+                                        {candidate.current_title || "Candidate"}
+                                        {candidate.current_company ? ` at ${candidate.current_company}` : ""}
+                                    </p>
                                 </div>
                                 <div className="text-right">
                                     <Badge variant="outline" className="capitalize border-green-200 bg-green-50 text-green-700">

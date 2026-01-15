@@ -25,6 +25,13 @@ export async function GET(
                 ja.applied_at,
                 ja.applied_at,
                 ja.score,
+                ja.message,
+                ja.offer_letter_url,
+                ja.signed_offer_letter_url,
+                ja.offered_salary,
+                ja.appointment_letter_url,
+                ja.signed_appointment_letter_url,
+                ja.joining_form_url,
                 u.avatar_url,
                 COALESCE(ja.resume_path, ja.resume_url, u.resume_url) as resume_url,
                 u.name,
@@ -32,11 +39,15 @@ export async function GET(
                 u.phone,
                 u.city,
                 u.country,
+                u.cnic,
                 u.position as current_title,
                 NULL as current_company,
                 j.id as job_id,
                 j.job_title,
-                j.status as job_status
+                j.status as job_status,
+                j.department,
+                j.salary_from,
+                j.type_of_employment
             FROM job_applications ja
             JOIN users u ON ja.user_id = u.id
             JOIN jobs j ON ja.job_id = j.id

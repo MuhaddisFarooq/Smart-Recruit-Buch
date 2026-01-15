@@ -70,12 +70,23 @@ type CandidateProfile = {
     education_list?: Education[];
     avatar_url?: string;
     score?: number;
+    message?: string;
+    offer_letter_url?: string;
+    signed_offer_letter_url?: string;
+    appointment_letter_url?: string;
+    signed_appointment_letter_url?: string;
+    department?: string;
+    salary_from?: string;
+    type_of_employment?: string;
+    offered_salary?: string;
 };
 
 import { DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import AppointmentDialog from "@/components/jobs/AppointmentDialog";
 import MoveToJobDialog from "@/components/jobs/MoveToJobDialog";
+import OfferDialog from "@/components/jobs/OfferDialog";
 
-// ... Types ...
+import JoiningFormDialog from "@/components/jobs/JoiningFormDialog";
 
 export default function CandidateProfilePage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
@@ -83,6 +94,13 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
     const [candidate, setCandidate] = useState<CandidateProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+    const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false);
+    const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
+    const [appointmentCandidate, setAppointmentCandidate] = useState<any>(null);
+
+
+    const [isJoiningDialogOpen, setIsJoiningDialogOpen] = useState(false);
+    const [joiningCandidate, setJoiningCandidate] = useState<any>(null);
 
     // Tab State
     const [activeTab, setActiveTab] = useState("Overview");
@@ -237,8 +255,34 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
         }
     };
 
+    const handleGenerateAppointment = () => {
+        if (!candidate) return;
+        setAppointmentCandidate({
+            ...candidate,
+            job_title: candidate.job_title,
+            department: candidate.department,
+            salary_from: candidate.salary_from,
+            offered_salary: candidate.offered_salary,
+            type_of_employment: candidate.type_of_employment,
+            application_id: candidate.application_id // Ensure ID is passed
+        });
+        setIsAppointmentDialogOpen(true);
+    };
+
+    const handleGenerateJoiningForm = () => {
+        if (!candidate) return;
+        setJoiningCandidate({
+            ...candidate,
+            job_title: candidate.job_title,
+            department: candidate.department,
+            application_id: candidate.application_id
+        });
+        setIsJoiningDialogOpen(true);
+    };
+
     const handleStatusChange = async (newStatus: string) => {
         if (!candidate) return;
+
         try {
             const res = await fetch(`/api/job-applications/${candidate.application_id}`, {
                 method: "PATCH",
@@ -445,7 +489,7 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                                     }`}
                             >
                                 {tab}
-                                {tab === 'Communication' && <span className="ml-1.5 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">1</span>}
+                                {tab === 'Communication' && (candidate.message || 0) !== 0 && <span className="ml-1.5 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{candidate.message ? 1 : 0}</span>}
                             </div>
                         ))}
 
@@ -588,6 +632,47 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                                 </div>
                             )}
                         </>
+                    )}
+
+                    {activeTab === 'Communication' && (
+                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-base font-semibold text-gray-900">Communication History</h3>
+                            </div>
+
+                            <div className="space-y-6 relative pl-4 border-l-2 border-gray-100 ml-2">
+                                {candidate.message ? (
+                                    <div className="relative pl-6">
+                                        {/* Timeline dot */}
+                                        <div className="absolute -left-[33px] top-0 w-4 h-4 rounded-full bg-[#b9d36c] ring-4 ring-white"></div>
+
+                                        <div className="border border-gray-200 rounded-lg p-5 bg-white shadow-sm">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-10 w-10 bg-purple-50 border border-purple-100 text-purple-600">
+                                                        <AvatarFallback className="text-sm font-bold">
+                                                            {candidate.name.substring(0, 2).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <div className="font-bold text-gray-900 text-sm">{candidate.name}</div>
+                                                        <div className="text-xs text-gray-500">Applicant • {new Date(candidate.applied_at).toLocaleString()}</div>
+                                                    </div>
+                                                </div>
+                                                <Badge variant="outline" className="text-xs font-normal text-gray-500 bg-gray-50">
+                                                    Application Message
+                                                </Badge>
+                                            </div>
+                                            <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap pl-1">
+                                                {candidate.message}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="pl-6 text-sm text-gray-400 italic py-8">No communication history found</div>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                     {activeTab === 'Reviews' && (
@@ -823,6 +908,21 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                                     <DropdownMenuItem onClick={() => setIsMoveDialogOpen(true)}>
                                         Add to another job
                                     </DropdownMenuItem>
+                                    {candidate.status === 'offered' && (
+                                        <DropdownMenuItem onClick={() => setIsOfferDialogOpen(true)}>
+                                            Generate Offer Letter
+                                        </DropdownMenuItem>
+                                    )}
+                                    {candidate.status === 'hired' && (
+                                        <>
+                                            <DropdownMenuItem onClick={handleGenerateAppointment}>
+                                                Generate Appointment Letter
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={handleGenerateJoiningForm}>
+                                                Generate Joining Form
+                                            </DropdownMenuItem>
+                                        </>
+                                    )}
                                     <DropdownMenuItem onClick={() => handleDeleteApplication()}>
                                         Remove from this job
                                     </DropdownMenuItem>
@@ -849,6 +949,26 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                             onSuccess={() => {
                                 fetchCandidate();
                                 router.push(`/jobs`); // Or refresh page to see new job link
+                            }}
+                        />
+
+                        <OfferDialog
+                            open={isOfferDialogOpen}
+                            onOpenChange={setIsOfferDialogOpen}
+                            candidate={candidate}
+                            onSuccess={(url) => {
+                                fetchCandidate();
+                                // Status is updated by the API called inside OfferDialog
+                            }}
+                        />
+
+                        <AppointmentDialog
+                            open={isAppointmentDialogOpen}
+                            onOpenChange={setIsAppointmentDialogOpen}
+                            candidate={appointmentCandidate}
+                            onSuccess={(url) => {
+                                fetchCandidate();
+                                setAppointmentCandidate(null);
                             }}
                         />
 
@@ -1032,11 +1152,140 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
                                             }}>
                                                 Download
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem className="text-red-600" onClick={(e) => {
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        )}
+
+                        {(candidate as any).offer_letter_url && (
+                            <div className="px-4 pb-4 pt-0">
+                                <div
+                                    className="flex items-center gap-3 text-sm text-blue-600 hover:underline cursor-pointer group"
+                                    onClick={() => window.open((candidate as any).offer_letter_url, '_blank')}
+                                >
+                                    <FileText className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
+                                    Offer Letter
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <MoreHorizontal className="h-4 w-4 text-gray-300 ml-auto hover:text-gray-600" />
+                                            </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
                                                 e.stopPropagation();
-                                                toast.info("Delete not implemented yet");
+                                                window.open((candidate as any).offer_letter_url, '_blank');
                                             }}>
-                                                Delete
+                                                Download
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        )}
+
+                        {(candidate as any).signed_offer_letter_url && (
+                            <div className="px-4 pb-4 pt-0">
+                                <div
+                                    className="flex items-center gap-3 text-sm text-green-600 hover:underline cursor-pointer group"
+                                    onClick={() => window.open((candidate as any).signed_offer_letter_url, '_blank')}
+                                >
+                                    <FileText className="h-4 w-4 text-gray-400 group-hover:text-green-600" />
+                                    Signed Offer
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <MoreHorizontal className="h-4 w-4 text-gray-300 ml-auto hover:text-gray-600" />
+                                            </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open((candidate as any).signed_offer_letter_url, '_blank');
+                                            }}>
+                                                Download
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        )}
+
+                        {(candidate as any).appointment_letter_url && (
+                            <div className="px-4 pb-4 pt-0">
+                                <div
+                                    className="flex items-center gap-3 text-sm text-blue-600 hover:underline cursor-pointer group"
+                                    onClick={() => window.open((candidate as any).appointment_letter_url, '_blank')}
+                                >
+                                    <FileText className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
+                                    Appointment Letter
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <MoreHorizontal className="h-4 w-4 text-gray-300 ml-auto hover:text-gray-600" />
+                                            </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open((candidate as any).appointment_letter_url, '_blank');
+                                            }}>
+                                                Download
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        )}
+
+                        {(candidate as any).signed_appointment_letter_url && (
+                            <div className="px-4 pb-4 pt-0">
+                                <div
+                                    className="flex items-center gap-3 text-sm text-green-600 hover:underline cursor-pointer group"
+                                    onClick={() => window.open((candidate as any).signed_appointment_letter_url, '_blank')}
+                                >
+                                    <FileText className="h-4 w-4 text-gray-400 group-hover:text-green-600" />
+                                    Signed Appointment
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <MoreHorizontal className="h-4 w-4 text-gray-300 ml-auto hover:text-gray-600" />
+                                            </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open((candidate as any).signed_appointment_letter_url, '_blank');
+                                            }}>
+                                                Download
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        )}
+
+                        {(candidate as any).joining_form_url && (
+                            <div className="px-4 pb-4 pt-0">
+                                <div
+                                    className="flex items-center gap-3 text-sm text-blue-600 hover:underline cursor-pointer group"
+                                    onClick={() => window.open((candidate as any).joining_form_url, '_blank')}
+                                >
+                                    <FileText className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
+                                    Joining Form
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <MoreHorizontal className="h-4 w-4 text-gray-300 ml-auto hover:text-gray-600" />
+                                            </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open((candidate as any).joining_form_url, '_blank');
+                                            }}>
+                                                Download
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -1050,6 +1299,17 @@ export default function CandidateProfilePage({ params }: { params: Promise<{ id:
 
                 </aside>
             </main >
+            {/* Joining Form Dialog */}
+            <JoiningFormDialog
+                open={isJoiningDialogOpen}
+                onOpenChange={setIsJoiningDialogOpen}
+                candidate={joiningCandidate}
+                onSuccess={(url) => {
+                    fetchCandidate();
+                    setJoiningCandidate(null);
+                }}
+            />
+
         </div >
     );
 }

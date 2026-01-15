@@ -283,9 +283,6 @@ export default function PeoplePage() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-56">
                                         <DropdownMenuItem disabled={selectedCandidates.size === 0}>Add to job</DropdownMenuItem>
-                                        <DropdownMenuItem disabled={selectedCandidates.size === 0}>Add tags to candidate</DropdownMenuItem>
-                                        <DropdownMenuItem disabled={selectedCandidates.size === 0}>Request consent</DropdownMenuItem>
-                                        <DropdownMenuItem disabled={selectedCandidates.size === 0}>Remove employee badge</DropdownMenuItem>
                                         <DropdownMenuItem disabled={selectedCandidates.size === 0} className="text-red-600">Delete candidate</DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>

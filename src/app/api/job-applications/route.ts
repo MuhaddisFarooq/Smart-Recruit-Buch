@@ -21,14 +21,33 @@ export async function GET(req: NextRequest) {
             return NextResponse.json([]);
         }
 
-        const applications = await query(
-            `SELECT ja.*, j.job_title, j.location, j.city, j.country 
-             FROM job_applications ja 
-             LEFT JOIN jobs j ON ja.job_id = j.id 
-             WHERE ja.user_id = ? 
-             ORDER BY ja.applied_at DESC`,
-            [userId]
-        );
+        let applications;
+        try {
+            applications = await fetchApplicationsWithRetry(userId);
+        } catch (error: any) {
+            if (error.code === 'ER_BAD_FIELD_ERROR' || error.message?.includes("Unknown column")) {
+                console.warn("Lazy Migration: Adding missing appointment letter columns...");
+                await execute("ALTER TABLE job_applications ADD COLUMN appointment_letter_url VARCHAR(255) NULL");
+                await execute("ALTER TABLE job_applications ADD COLUMN signed_appointment_letter_url VARCHAR(255) NULL");
+                applications = await fetchApplicationsWithRetry(userId);
+            } else {
+                throw error;
+            }
+        }
+
+        async function fetchApplicationsWithRetry(uid: string) {
+            return await query(
+                `SELECT ja.*, 
+                ja.offer_letter_url, ja.signed_offer_letter_url, 
+                ja.appointment_letter_url, ja.signed_appointment_letter_url,
+                j.job_title, j.location, j.city, j.country, j.type_of_employment
+                 FROM job_applications ja 
+                 LEFT JOIN jobs j ON ja.job_id = j.id 
+                 WHERE ja.user_id = ? 
+                 ORDER BY ja.applied_at DESC`,
+                [uid]
+            );
+        }
 
         return NextResponse.json(applications);
     } catch (error: any) {
