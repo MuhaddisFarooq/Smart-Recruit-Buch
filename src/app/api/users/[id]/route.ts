@@ -54,12 +54,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         } = body;
 
         // Check if user exists
-        const existing = await query("SELECT id, password FROM users WHERE id = ?", [id]);
-        if (!existing || (existing as any[]).length === 0) {
+        const rows = await query("SELECT * FROM users WHERE id = ?", [id]);
+        if (!rows || (rows as any[]).length === 0) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        let finalPassword = (existing as any[])[0].password;
+        const existingUser = (rows as any[])[0];
+
+        let finalPassword = existingUser.password;
         if (password && password.trim() !== "") {
             finalPassword = await bcrypt.hash(password, 10);
         }
@@ -70,18 +72,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         password=?, role=?, status=?, picture=?, cnic=?, phone=?, joining_date=?, updatedBy=?, updatedDate=NOW()
        WHERE id=?`,
             [
-                employee_id || null,
-                name,
-                department || null,
-                designation || null,
-                email,
+                employee_id !== undefined ? employee_id : existingUser.employee_id,
+                name !== undefined ? name : existingUser.name,
+                department !== undefined ? department : existingUser.department,
+                designation !== undefined ? designation : existingUser.designation,
+                email !== undefined ? email : existingUser.email,
                 finalPassword,
-                role,
-                status,
-                picture || null,
-                cnic || null,
-                phone || null,
-                joining_date || null,
+                role !== undefined ? role : existingUser.role,
+                status !== undefined ? status : existingUser.status,
+                picture !== undefined ? picture : existingUser.picture,
+                cnic !== undefined ? cnic : existingUser.cnic,
+                phone !== undefined ? phone : existingUser.phone,
+                joining_date !== undefined ? joining_date : existingUser.joining_date,
                 updatedBy,
                 id
             ]

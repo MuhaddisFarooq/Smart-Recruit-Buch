@@ -53,6 +53,7 @@ export async function GET(
                 ja.user_id,
                 ja.status,
                 ja.applied_at,
+                ja.updated_at,
                 ja.score,
                 ja.offered_salary,
                 ja.offer_letter_url,

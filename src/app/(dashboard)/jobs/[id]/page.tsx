@@ -54,6 +54,7 @@ import MoveToJobDialog from "@/components/jobs/MoveToJobDialog";
 import OfferDialog from "@/components/jobs/OfferDialog";
 import AppointmentDialog from "@/components/jobs/AppointmentDialog";
 import JoiningFormDialog from "@/components/jobs/JoiningFormDialog";
+import MessageDialog from "@/components/jobs/MessageDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     AlertDialog,
@@ -133,6 +134,22 @@ type Application = {
     signed_offer_letter_url?: string;
     appointment_letter_url?: string;
     signed_appointment_letter_url?: string;
+    updated_at?: string;
+};
+
+const renderStatusBadge = (status: string) => {
+    switch (status) {
+        case 'new': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'reviewed': return 'bg-purple-100 text-purple-800 border-purple-200'; // In-Review
+        case 'shortlisted': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        case 'interview': return 'bg-orange-100 text-orange-800 border-orange-200';
+        case 'selected': return 'bg-pink-100 text-pink-800 border-pink-200';
+        case 'offered': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        case 'hired': return 'bg-green-100 text-green-800 border-green-200';
+        case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
+        case 'withdrawn': return 'bg-gray-100 text-gray-800 border-gray-200';
+        default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
 };
 
 // --- Components ---
@@ -149,7 +166,7 @@ const StatusCounterCard = ({ label, count, active = false, onClick }: { label: s
     </div>
 );
 
-const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplication, onDeleteCandidate, onView, onSchedule, onEditPanel, onMoveToJob, onGenerateOffer, onGenerateAppointment, onGenerateJoiningForm }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDeleteApplication: (id: number) => void, onDeleteCandidate: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void, onEditPanel: (id: number) => void, onMoveToJob: (id: number) => void, onGenerateOffer: (id: number) => void, onGenerateAppointment: (id: number) => void, onGenerateJoiningForm: (id: number, type?: "joining" | "hostel" | "transport") => void }) => {
+const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplication, onDeleteCandidate, onView, onSchedule, onEditPanel, onMoveToJob, onGenerateOffer, onGenerateAppointment, onGenerateJoiningForm, onMessage }: { app: Application, selected: boolean, onSelect: (id: number) => void, onStatusChange: (id: number, status: string) => void, onDeleteApplication: (id: number) => void, onDeleteCandidate: (id: number) => void, onView: (app: Application) => void, onSchedule: (id: number) => void, onEditPanel: (id: number) => void, onMoveToJob: (id: number) => void, onGenerateOffer: (id: number) => void, onGenerateAppointment: (id: number) => void, onGenerateJoiningForm: (id: number, type?: "joining" | "hostel" | "transport") => void, onMessage: (id: number) => void }) => {
     return (
         <div className="flex items-center py-4 px-4 hover:bg-gray-50 border-b border-gray-100 group transition-colors">
             {/* Checkbox */}
@@ -257,7 +274,7 @@ const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplica
 
                         <DropdownMenuSeparator />
 
-                        <DropdownMenuItem onClick={() => toast.info("Feature coming soon")}>
+                        <DropdownMenuItem onClick={() => onMessage(app.application_id)}>
                             Send message
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onMoveToJob(app.application_id)}>
@@ -292,14 +309,20 @@ const ApplicantRow = ({ app, selected, onSelect, onStatusChange, onDeleteApplica
                 </div>
             </div>
 
-            {/* Status */}
+            {/* Status & Date */}
             <div className="w-[15%] px-2">
-                <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-700 capitalize">{app.status === 'reviewed' ? 'In-Review' : app.status.replace('-', ' ')}</span>
-                    {app.last_status_change_by && (
-                        <span className="text-[10px] text-gray-400">by {app.last_status_change_by}</span>
+                <Badge
+                    variant="outline"
+                    className={`mb-1 capitalize ${renderStatusBadge(app.status)}`}
+                >
+                    {app.status === 'reviewed' ? 'In-Review' : app.status.replace('-', ' ')}
+                </Badge>
+                <div className="text-[10px] text-gray-400">
+                    {app.status === 'new' ? (
+                        <span>Applied {new Date(app.applied_at).toLocaleDateString()}</span>
+                    ) : (
+                        <span>Updated {new Date(app.updated_at || app.applied_at).toLocaleDateString()}</span>
                     )}
-                    <span className="text-xs text-gray-500">{new Date(app.applied_at).toLocaleDateString()}</span>
                 </div>
             </div>
 
@@ -369,6 +392,18 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
     const [isJoiningFormDialogOpen, setIsJoiningFormDialogOpen] = useState(false);
     const [joiningFormCandidate, setJoiningFormCandidate] = useState<any>(null);
     const [joiningFormType, setJoiningFormType] = useState<"joining" | "hostel" | "transport">("joining");
+
+    // Message Dialog State
+    const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
+    const [messageCandidate, setMessageCandidate] = useState<any>(null);
+
+    const handleMessage = (appId: number) => {
+        const app = applications.find(a => a.application_id === appId);
+        if (app) {
+            setMessageCandidate({ user_id: app.user_id, name: app.name, avatar_url: app.avatar_url, application_id: app.application_id });
+            setIsMessageDialogOpen(true);
+        }
+    };
 
     const handleSchedule = (id: number) => {
         setScheduleAppId(id);
@@ -444,11 +479,11 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                 await Promise.all(selectedAppIds.map(id => fetch(`/api/user/application/${id}`, { method: 'DELETE' })));
                 setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.application_id)));
                 toast.success(`Deleted ${selectedAppIds.length} candidate(s)`);
-            } else if (['rejected', 'hired', 'withdrawn', 'interview'].includes(action)) {
+            } else if (['rejected', 'hired', 'withdrawn', 'interview', 'reviewed', 'shortlisted', 'offered'].includes(action)) {
                 // Implement bulk status change
                 await Promise.all(selectedAppIds.map(id =>
-                    fetch(`/api/user/application/${id}/status`, {
-                        method: 'PUT',
+                    fetch(`/api/job-applications/${id}`, {
+                        method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: action })
                     })
@@ -946,32 +981,23 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="start" className="w-56">
-                                            <DropdownMenuItem onClick={() => handleBulkAction('rejected')}>
-                                                <X className="mr-2 h-4 w-4" /> Reject ({selectedAppIds.length})
-                                            </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => handleBulkAction('hired')}>
                                                 <Check className="mr-2 h-4 w-4" /> Hire ({selectedAppIds.length})
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
-                                                <CalendarCheck className="mr-2 h-4 w-4" /> Invite to event ({selectedAppIds.length})
+                                            <DropdownMenuItem onClick={() => handleBulkAction('rejected')}>
+                                                <X className="mr-2 h-4 w-4" /> Reject ({selectedAppIds.length})
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
-                                                <Share2 className="mr-2 h-4 w-4" /> Share ({selectedAppIds.length})
+                                            <DropdownMenuItem onClick={() => handleBulkAction('reviewed')}>
+                                                In-Review ({selectedAppIds.length})
                                             </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onClick={() => handleBulkAction('interview')}>
-                                                Change status ({selectedAppIds.length})
+                                            <DropdownMenuItem onClick={() => handleBulkAction('shortlisted')}>
+                                                Shortlist ({selectedAppIds.length})
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
-                                                <Mail className="mr-2 h-4 w-4" /> Send message ({selectedAppIds.length})
+                                            <DropdownMenuItem onClick={() => handleBulkAction('offered')}>
+                                                Move To Offer ({selectedAppIds.length})
                                             </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem className="text-red-600" onClick={() => {
-                                                if (confirm(`Delete ${selectedAppIds.length} candidates? This cannot be undone.`)) {
-                                                    handleBulkAction('delete');
-                                                }
-                                            }}>
-                                                <Trash2 className="mr-2 h-4 w-4" /> Delete candidates ({selectedAppIds.length})
+                                            <DropdownMenuItem className="text-red-600" onClick={() => handleBulkAction('withdrawn')}>
+                                                Mark as withdrawn ({selectedAppIds.length})
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -1140,6 +1166,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                                             onGenerateOffer={handleGenerateOffer}
                                             onGenerateAppointment={handleGenerateAppointment}
                                             onGenerateJoiningForm={handleGenerateJoiningForm}
+                                            onMessage={handleMessage}
                                         />
                                     ))
                                 )}
@@ -1573,6 +1600,14 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                     fetchJobData();
                     setJoiningFormCandidate(null);
                 }}
+            />
+
+            {/* Message Dialog */}
+            <MessageDialog
+                open={isMessageDialogOpen}
+                onOpenChange={setIsMessageDialogOpen}
+                candidate={messageCandidate}
+                jobId={resolvedParams.id ? parseInt(resolvedParams.id) : undefined}
             />
 
         </div>

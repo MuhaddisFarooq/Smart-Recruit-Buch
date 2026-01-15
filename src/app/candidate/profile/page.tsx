@@ -113,11 +113,21 @@ export default function CandidateProfilePage() {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-[#666] mb-1">Employee ID</label>
-                            <Input value={formData.employee_id || "N/A"} disabled className="bg-gray-50 text-gray-500" />
+                            <Input
+                                name="employee_id"
+                                value={formData.employee_id}
+                                onChange={handleChange}
+                                placeholder="Enter Employee ID"
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[#666] mb-1">Joining Date</label>
-                            <Input value={formData.joining_date || "N/A"} disabled className="bg-gray-50 text-gray-500" />
+                            <Input
+                                name="joining_date"
+                                type="date"
+                                value={formData.joining_date}
+                                onChange={handleChange}
+                            />
                         </div>
                     </div>
 

@@ -78,6 +78,7 @@ export default function CandidateNav() {
     const navItems = [
         { label: "Find Jobs", href: "/candidate/jobs" },
         { label: "My Applications", href: "/candidate/applications" },
+        { label: "My Messages", href: "/candidate/messages" },
     ];
 
     const userName = session?.user?.name || "Candidate";
