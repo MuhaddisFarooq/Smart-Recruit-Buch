@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, Share2, Globe, Linkedin, Facebook, Twitter, Link as LinkIcon, Copy, Check } from "lucide-react";
+import { ArrowRight, Globe, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
 import { useState } from "react";
 
 type StepAdvertiseFormProps = {
@@ -8,77 +9,93 @@ type StepAdvertiseFormProps = {
     setFormData: (data: any) => void;
     onNext: () => void;
     onBack: () => void;
+    jobId: number | null;
 };
 
-const JOB_BOARDS = [
-    { name: "LinkedIn", icon: Linkedin, connected: true },
-    { name: "Indeed", icon: Globe, connected: false },
-    { name: "Glassdoor", icon: Globe, connected: false },
-    { name: "Monster", icon: Globe, connected: false },
-];
+export default function StepAdvertiseForm({ formData, setFormData, onNext, onBack, jobId }: StepAdvertiseFormProps) {
+    const [advertising, setAdvertising] = useState(false);
+    const [advertised, setAdvertised] = useState(false);
 
-export default function StepAdvertiseForm({ formData, setFormData, onNext, onBack }: StepAdvertiseFormProps) {
-    const [selectedBoards, setSelectedBoards] = useState<string[]>(["LinkedIn"]);
+    const handleAdvertise = async () => {
+        if (!jobId) {
+            toast.error("Job ID not found. Please try publishing again.");
+            return;
+        }
 
-    const toggleBoard = (name: string) => {
-        setSelectedBoards(prev =>
-            prev.includes(name)
-                ? prev.filter(b => b !== name)
-                : [...prev, name]
-        );
+        setAdvertising(true);
+        const toastId = toast.loading("Advertising job...");
+
+        try {
+            const res = await fetch(`/api/jobs/${jobId}/advertise`, { method: "POST" });
+            const data = await res.json();
+
+            if (res.ok) {
+                toast.success("Job advertised successfully", { id: toastId });
+                setAdvertised(true);
+            } else {
+                toast.error(data.error || "Failed to advertise job", { id: toastId });
+            }
+        } catch (error) {
+            toast.error("An error occurred", { id: toastId });
+        } finally {
+            setAdvertising(false);
+        }
     };
 
     return (
         <div>
             <h2 className="text-lg font-semibold text-[#238740] mb-6">Advertise your job</h2>
 
-            <p className="text-sm text-[#666] mb-6">
-                Select where you want to post your job listing. Connect your accounts to automatically share.
+            <p className="text-sm text-[#666] mb-8">
+                Your job is published! Now you can advertise it to our careers website to reach more candidates.
             </p>
 
-            {/* Job Boards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                {JOB_BOARDS.map((board) => (
-                    <label
-                        key={board.name}
-                        className={`flex items-center gap-4 p-4 border rounded cursor-pointer transition-colors ${selectedBoards.includes(board.name)
-                                ? "border-[#238740] bg-[#238740]/5"
-                                : "border-[#E6E6E6] hover:border-[#D1D1D1]"
-                            }`}
-                    >
-                        <input
-                            type="checkbox"
-                            checked={selectedBoards.includes(board.name)}
-                            onChange={() => toggleBoard(board.name)}
-                            className="w-4 h-4 accent-[#238740]"
-                        />
-                        <board.icon className="w-6 h-6 text-[#666]" />
-                        <div className="flex-1">
-                            <p className="text-sm font-medium text-[#333]">{board.name}</p>
-                            <p className="text-xs text-[#666]">
-                                {board.connected ? "Connected" : "Not connected"}
+            {/* Advertise Action */}
+            <div className={`border rounded-lg p-6 mb-8 transition-colors ${advertised ? "border-[#238740] bg-[#238740]/5" : "border-[#E6E6E6]"}`}>
+                <div className="flex items-start justify-between">
+                    <div className="flex gap-4">
+                        <div className={`p-3 rounded-full ${advertised ? "bg-[#238740] text-white" : "bg-neutral-100 text-neutral-500"}`}>
+                            <Globe className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-neutral-800 mb-1">
+                                {advertised ? "Job Advertised" : "Advertise to Careers Website"}
+                            </h3>
+                            <p className="text-sm text-neutral-500 max-w-md">
+                                {advertised
+                                    ? "This job is live on the careers portal. Candidates can now find and apply for this position."
+                                    : "Publish this job listing to the public careers portal to start receiving applications immediately."}
                             </p>
                         </div>
-                    </label>
-                ))}
-            </div>
+                    </div>
+                </div>
 
-            {/* Premium Posting */}
-            <div className="bg-[#FFF8E7] border border-[#F0C36D] rounded p-4 mb-6">
-                <h3 className="text-sm font-medium text-[#333] mb-2">🚀 Boost your job visibility</h3>
-                <p className="text-xs text-[#666]">
-                    Upgrade to premium posting to reach 3x more candidates and appear at the top of search results.
-                </p>
+                <div className="mt-6 pl-[68px]">
+                    {advertised ? (
+                        <div className="flex items-center gap-2 text-[#238740] font-medium text-sm">
+                            <CheckCircle className="w-5 h-5" />
+                            Successfully Advertised
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleAdvertise}
+                            disabled={advertising}
+                            className="px-6 py-2.5 bg-[#238740] text-white text-sm font-semibold rounded hover:bg-[#1d7235] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {advertising ? "Advertising..." : "Advertise Now"}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Bottom Actions */}
-            <div className="flex items-center gap-4 pt-4 border-t border-[#E6E6E6]">
+            <div className="flex items-center justify-end gap-4 pt-4 border-t border-[#E6E6E6]">
                 <button
                     type="button"
                     onClick={onNext}
-                    className="flex items-center gap-2 px-5 py-2 bg-[#238740] text-white text-sm font-medium rounded hover:bg-[#1d7235] transition-colors"
+                    className="flex items-center gap-2 px-6 py-2.5 border border-[#238740] text-[#238740] text-sm font-medium rounded hover:bg-[#238740]/5 transition-colors"
                 >
-                    Next
+                    {advertised ? "Finish" : "Skip & Finish"}
                     <ArrowRight className="w-4 h-4" />
                 </button>
             </div>

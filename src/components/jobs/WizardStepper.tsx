@@ -12,7 +12,6 @@ const STEPS: Step[] = [
     { id: 2, label: "Details" },
     { id: 3, label: "Hiring Team" },
     { id: 4, label: "Advertise" },
-    { id: 5, label: "Share" },
 ];
 
 type WizardStepperProps = {
@@ -34,10 +33,10 @@ export default function WizardStepper({ currentStep, completedSteps }: WizardSte
                         <div className="flex flex-col items-center">
                             <div
                                 className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${isCompleted
+                                    ? "bg-[#238740] text-white"
+                                    : isActive
                                         ? "bg-[#238740] text-white"
-                                        : isActive
-                                            ? "bg-[#238740] text-white"
-                                            : "bg-white border-2 border-[#238740] text-[#238740]"
+                                        : "bg-white border-2 border-[#238740] text-[#238740]"
                                     }`}
                             >
                                 {isCompleted ? (

@@ -42,7 +42,9 @@ export async function GET(req: NextRequest) {
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'selected') as selected_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'offered') as offered_count,
                 (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.status = 'hired') as hired_count,
-                ${userId ? `(SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.user_id = ${userId}) > 0` : 'FALSE'} as has_applied
+                ${userId ? `(SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id AND ja.user_id = ${userId}) > 0` : 'FALSE'} as has_applied,
+                j.advertised_date,
+                j.updatedDate
             FROM jobs j 
             ORDER BY j.addedDate DESC
         `);

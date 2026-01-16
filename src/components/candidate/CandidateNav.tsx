@@ -9,6 +9,7 @@ import { Search, Bell, User, LogOut, FileText } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 import NotificationBell from "@/components/ui/NotificationBell";
+import AuthRequiredDialog from "./AuthRequiredDialog";
 
 export default function CandidateNav() {
     const pathname = usePathname();
@@ -21,6 +22,8 @@ export default function CandidateNav() {
     const [allJobs, setAllJobs] = useState<any[]>([]);
     const [searchOpen, setSearchOpen] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
+    const [authDialogOpen, setAuthDialogOpen] = useState(false);
+    const [pendingUrl, setPendingUrl] = useState<string>("");
 
     // Fetch jobs once for search
     useEffect(() => {
@@ -81,6 +84,16 @@ export default function CandidateNav() {
         { label: "My Messages", href: "/candidate/messages" },
     ];
 
+    const handleNavClick = (e: React.MouseEvent, href: string) => {
+        if (href === "/candidate/jobs") return; // Public
+
+        if (!session) {
+            e.preventDefault();
+            setPendingUrl(href);
+            setAuthDialogOpen(true);
+        }
+    };
+
     const userName = session?.user?.name || "Candidate";
     const userInitials = userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
@@ -105,6 +118,7 @@ export default function CandidateNav() {
                         <Link
                             key={item.href}
                             href={item.href}
+                            onClick={(e) => handleNavClick(e, item.href)}
                             className={`relative py-5 text-sm font-medium transition-colors ${isActive ? "text-[#333]" : "text-[#666] hover:text-[#333]"
                                 }`}
                         >
@@ -174,6 +188,7 @@ export default function CandidateNav() {
                         <div className="py-1">
                             <Link
                                 href="/candidate/profile"
+                                onClick={(e) => handleNavClick(e, "/candidate/profile")}
                                 className="flex items-center gap-3 px-4 py-2 text-sm text-[#555] hover:bg-[#F5F5F5]"
                             >
                                 <User className="h-4 w-4" />
@@ -181,6 +196,7 @@ export default function CandidateNav() {
                             </Link>
                             <Link
                                 href="/candidate/applications"
+                                onClick={(e) => handleNavClick(e, "/candidate/applications")}
                                 className="flex items-center gap-3 px-4 py-2 text-sm text-[#555] hover:bg-[#F5F5F5]"
                             >
                                 <FileText className="h-4 w-4" />
@@ -188,17 +204,34 @@ export default function CandidateNav() {
                             </Link>
                         </div>
                         <div className="border-t border-[#E6E6E6] py-1">
-                            <button
-                                onClick={() => signOut({ callbackUrl: "/login" })}
-                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#666] hover:bg-[#F5F5F5]"
-                            >
-                                <LogOut className="h-4 w-4" />
-                                Sign out
-                            </button>
+                            {session ? (
+                                <button
+                                    onClick={() => signOut({ callbackUrl: "/login" })}
+                                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#666] hover:bg-[#F5F5F5]"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                    Sign out
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => router.push("/?callbackUrl=/candidate/jobs")}
+                                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#666] hover:bg-[#F5F5F5]"
+                                >
+                                    <LogOut className="h-4 w-4 rotate-180" />
+                                    Sign in
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
             </div>
+            {/* Auth Dialog */}
+            <AuthRequiredDialog
+                open={authDialogOpen}
+                onOpenChange={setAuthDialogOpen}
+                returnUrl={pendingUrl}
+                message="Please sign in to view your dashboard."
+            />
         </nav>
     );
 }

@@ -155,8 +155,10 @@ export async function POST(req: Request) {
             console.log("Using Gemini API...");
             console.log("API Key present:", process.env.GEMINI_API_KEY ? "Yes (GEMINI)" : process.env.GOOGLE_API_KEY ? "Yes (GOOGLE)" : "No");
             try {
+                // Using gemini-2.5-flash-lite as requested.
+                // It offers 4,000 RPM (Requests Per Minute) and is highly efficient.
                 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY!);
-                const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
                 const result = await model.generateContent([
                     SYSTEM_PROMPT + "\n\nRESUME TEXT:\n" + text
                 ]);

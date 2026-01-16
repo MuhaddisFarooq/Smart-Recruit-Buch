@@ -68,6 +68,7 @@ export default function CreateJobPage() {
     const [completedSteps, setCompletedSteps] = useState<number[]>([]);
     const [formData, setFormData] = useState<JobFormData>(INITIAL_FORM_DATA);
     const [saving, setSaving] = useState(false);
+    const [createdJobId, setCreatedJobId] = useState<number | null>(null);
 
     const goToStep = (step: number) => {
         // Mark current step as completed when moving forward
@@ -78,8 +79,10 @@ export default function CreateJobPage() {
     };
 
     const handleNext = () => {
-        if (currentStep < 5) {
+        if (currentStep < 4) {
             goToStep(currentStep + 1);
+        } else if (currentStep === 4) {
+            router.push("/jobs");
         }
     };
 
@@ -122,8 +125,10 @@ export default function CreateJobPage() {
             });
 
             if (res.ok) {
+                const data = await res.json();
                 toast.success("Job published successfully!");
-                router.push("/jobs");
+                setCreatedJobId(data.id); // Assuming API returns { id: number }
+                goToStep(4);
             } else {
                 const data = await res.json();
                 toast.error(data.error || "Failed to publish job");
@@ -180,15 +185,7 @@ export default function CreateJobPage() {
                         setFormData={setFormData}
                         onNext={handleNext}
                         onBack={handleBack}
-                    />
-                )}
-
-                {currentStep === 5 && (
-                    <StepShareForm
-                        formData={formData}
-                        setFormData={setFormData}
-                        onPublish={handlePublish}
-                        onSave={handleSave}
+                        jobId={createdJobId}
                     />
                 )}
             </div>

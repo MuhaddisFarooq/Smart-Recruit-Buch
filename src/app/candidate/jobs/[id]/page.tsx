@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Briefcase, Linkedin, Facebook, Twitter, Mail, ExternalLink } from "lucide-react";
+import { ArrowLeft, MapPin, Briefcase, Linkedin, Facebook, Twitter, Mail, ExternalLink, UserPlus, LogIn } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 type Job = {
     id: number;
@@ -33,10 +36,14 @@ export default function JobDetailPage() {
     const router = useRouter();
     const params = useParams();
     const jobId = params.id as string;
+    const { data: session } = useSession();
+    const pathname = usePathname();
 
     const [job, setJob] = useState<Job | null>(null);
     const [otherJobs, setOtherJobs] = useState<OtherJob[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
+    const [pendingAction, setPendingAction] = useState<"apply" | "refer" | null>(null);
 
     useEffect(() => {
         fetchJob();
@@ -78,7 +85,34 @@ export default function JobDetailPage() {
 
     const handleApply = () => {
         if (job?.has_applied) return;
+
+        if (!session) {
+            setPendingAction("apply");
+            setIsAuthDialogOpen(true);
+            return;
+        }
+
         router.push(`/candidate/jobs/${jobId}/apply`);
+    };
+
+    const handleRefer = () => {
+        if (!session) {
+            setPendingAction("refer");
+            setIsAuthDialogOpen(true);
+            return;
+        }
+        router.push(`/candidate/jobs/${jobId}/refer`);
+    };
+
+    const handleAuthRedirect = (type: "login" | "register") => {
+        const targetPath = pendingAction === "refer"
+            ? `/candidate/jobs/${jobId}/refer`
+            : `/candidate/jobs/${jobId}/apply`;
+
+        const returnUrl = encodeURIComponent(targetPath);
+        const baseUrl = type === "register" ? "/register" : "/";
+
+        router.push(`${baseUrl}?callbackUrl=${returnUrl}`);
     };
 
     const getLocationString = () => {
@@ -223,7 +257,7 @@ export default function JobDetailPage() {
                                 </p>
                             )}
                             <button
-                                onClick={() => router.push(`/candidate/jobs/${jobId}/refer`)}
+                                onClick={handleRefer}
                                 className="w-full py-4 border-2 border-neutral-200 text-neutral-600 text-lg font-semibold rounded-xl hover:border-[#b9d36c] hover:text-[#b9d36c] hover:bg-[#b9d36c]/5 transition-all mb-8"
                             >
                                 Refer a friend
@@ -287,6 +321,45 @@ export default function JobDetailPage() {
                     </div>
                 </div>
             </div>
+            {/* Auth Required Dialog */}
+            <Dialog open={isAuthDialogOpen} onOpenChange={setIsAuthDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold text-center">Join Our Community</DialogTitle>
+                        <DialogDescription className="text-center text-base pt-2">
+                            {pendingAction === 'refer'
+                                ? "Please sign in or create an account to refer a friend for this position."
+                                : "Please sign in or create an account to apply for this position."}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                        <Button
+                            className="bg-[#b9d36c] hover:bg-[#a3bd5b] text-neutral-900 font-bold h-12 text-lg"
+                            onClick={() => handleAuthRedirect('register')}
+                        >
+                            <UserPlus className="mr-2 h-5 w-5" />
+                            Create an Account
+                        </Button>
+                        <div className="relative my-2">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-neutral-200" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-white px-2 text-neutral-500">Already have an account?</span>
+                            </div>
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="h-12 text-lg border-neutral-300 hover:bg-neutral-50"
+                            onClick={() => handleAuthRedirect('login')}
+                        >
+                            <LogIn className="mr-2 h-5 w-5" />
+                            Sign In
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
         </div >
     );
 }

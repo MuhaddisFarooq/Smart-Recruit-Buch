@@ -6,9 +6,23 @@ import type { NextRequest } from "next/server";
 export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
-  // If not signed in, send to sign-in page ONLY if not already there
-  if (!token && req.nextUrl.pathname !== "/" && req.nextUrl.pathname !== "/register") {
-    return NextResponse.redirect(new URL("/", req.url));
+  // Determine if the path is a public candidate path (browsing jobs)
+  // We allow /candidate/jobs and /candidate/jobs/[id] but NOT /apply, /refer, or /message
+  const isPublicCandidatePath = req.nextUrl.pathname.startsWith("/candidate/jobs") &&
+    !req.nextUrl.pathname.endsWith("/apply") &&
+    !req.nextUrl.pathname.endsWith("/refer") &&
+    !req.nextUrl.pathname.endsWith("/message");
+
+  // If not signed in, send to sign-in page ONLY if not already there AND not a public path
+  if (!token && req.nextUrl.pathname !== "/" && req.nextUrl.pathname !== "/register" && !isPublicCandidatePath) {
+    // If trying to access a protected page (like apply), redirect to register/login?
+    // User asked to be prompted to register. Let's send to /register?callbackUrl=... or just /register
+    // But standard is login usually. I'll stick to / (login) or /register if user insists. 
+    // "prompted to register...". I will redirect to /register.
+    const url = req.nextUrl.clone();
+    url.pathname = "/register";
+    url.searchParams.set("callbackUrl", req.url);
+    return NextResponse.redirect(url);
   }
 
   // Signed in -> allow

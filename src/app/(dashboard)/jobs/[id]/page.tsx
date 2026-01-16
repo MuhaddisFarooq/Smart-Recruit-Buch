@@ -29,7 +29,8 @@ import {
     Mail,
     Share2,
     CalendarCheck,
-    ArrowRight
+    ArrowRight,
+    Megaphone
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import CandidateProfileDrawer from "@/components/jobs/CandidateProfileDrawer";
@@ -107,6 +108,8 @@ type JobData = {
     internal_notes?: string;
     attachments?: string; // JSON string
     experience_level?: string;
+    advertised_date?: string | null;
+    updatedDate?: string | null;
 };
 
 type Application = {
@@ -744,6 +747,35 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
         }
     };
 
+    const handleAdvertise = async () => {
+        if (!job) return;
+
+        // Check validation
+        if (job.advertised_date && job.updatedDate) {
+            const advertised = new Date(job.advertised_date);
+            const updated = new Date(job.updatedDate);
+
+            // If advertised AFTER last update, it's up to date
+            if (advertised >= updated) {
+                toast.success("Job is already up to date on careers page.");
+                return;
+            }
+        }
+
+        const toastId = toast.loading("Advertising job...");
+        try {
+            const res = await fetch(`/api/jobs/${resolvedParams.id}/advertise`, { method: "POST" });
+            if (res.ok) {
+                toast.success("Job advertised successfully", { id: toastId });
+                fetchJobData(); // Refresh to get new advertised_date
+            } else {
+                toast.error("Failed to advertise job", { id: toastId });
+            }
+        } catch (error) {
+            toast.error("An error occurred", { id: toastId });
+        }
+    };
+
     if (loading) {
         return <div className="p-8 flex justify-center"><div className="animate-spin h-8 w-8 border-2 border-green-600 rounded-full border-t-transparent"></div></div>;
     }
@@ -797,7 +829,7 @@ export default function JobManagementPage({ params }: { params: Promise<{ id: st
                             <Button variant="outline" className="border-green-600 text-green-700 hover:bg-green-50" onClick={() => setIsAddCandidateOpen(true)}>
                                 Add candidate
                             </Button>
-                            <Button variant="outline" className="border-green-600 text-green-700 hover:bg-green-50">
+                            <Button variant="outline" className="border-green-600 text-green-700 hover:bg-green-50" onClick={handleAdvertise}>
                                 Advertise
                             </Button>
                             <DropdownMenu>
