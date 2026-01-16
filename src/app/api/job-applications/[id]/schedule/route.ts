@@ -24,6 +24,31 @@ export async function POST(
             [new Date(interview_date), id]
         );
 
+        // --- Send Email Notification ---
+        try {
+            // Import query dynamically or ensure it's imported at top
+            const { query } = await import("@/lib/db");
+
+            const details = await query(`
+                SELECT u.email, u.name, j.job_title 
+                FROM job_applications ja
+                JOIN users u ON ja.user_id = u.id
+                JOIN jobs j ON ja.job_id = j.id
+                WHERE ja.id = ?
+            `, [id]);
+
+            if (details.length > 0) {
+                const { email, name, job_title } = details[0];
+                const { sendEmail, getInterviewEmailTemplate } = await import("@/lib/email");
+                const emailContent = getInterviewEmailTemplate(name, job_title, interview_date);
+
+                await sendEmail(email, `Interview Application for ${job_title} - Buch International Hospital`, emailContent);
+            }
+        } catch (emailErr) {
+            console.error("Failed to send interview email", emailErr);
+        }
+        // -------------------------------
+
         return NextResponse.json({ success: true, message: "Interview scheduled" });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });

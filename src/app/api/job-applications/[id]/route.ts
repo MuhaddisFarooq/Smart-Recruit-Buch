@@ -185,6 +185,32 @@ export async function PATCH(
         } catch (filesErr) {
             console.error("Failed to create notification", filesErr);
         }
+
+        // --- Email Notification for Shortlisting ---
+        if (status === 'shortlisted') {
+            try {
+                // Fetch candidate's email
+                const candidateRes = await query(`
+                    SELECT u.email, u.name, j.job_title 
+                    FROM job_applications ja
+                    JOIN users u ON ja.user_id = u.id
+                    JOIN jobs j ON ja.job_id = j.id
+                    WHERE ja.id = ?
+                `, [id]);
+
+                if (candidateRes.length > 0) {
+                    const { email, name, job_title } = candidateRes[0];
+                    const { sendEmail, getShortlistEmailTemplate } = await import("@/lib/email");
+                    const emailContent = getShortlistEmailTemplate(name, job_title);
+
+                    console.log(`Sending shortlist email to ${email}`);
+                    await sendEmail(email, "You have been Shortlisted - Buch International Hospital", emailContent);
+                }
+            } catch (emailErr) {
+                console.error("Failed to send shortlist email", emailErr);
+            }
+        }
+        // -------------------------------------------
         // ----------------------------
 
         return NextResponse.json({ success: true, message: "Application updated successfully" });

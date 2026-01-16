@@ -66,6 +66,45 @@ export async function POST(
             [id, user_id, role]
         );
 
+        // --- Send Email Notification ---
+        try {
+            // Fetch necessary details for email
+            const details = await query(`
+                SELECT 
+                    j.job_title,
+                    u_candidate.name as candidate_name,
+                    u_adder.name as adder_name,
+                    u_member.name as member_name,
+                    u_member.email as member_email,
+                    ja.interview_date
+                FROM job_applications ja
+                JOIN jobs j ON ja.job_id = j.id
+                JOIN users u_candidate ON ja.user_id = u_candidate.id
+                JOIN users u_member ON u_member.id = ?
+                LEFT JOIN users u_adder ON u_adder.email = ? -- Fallback if ID not available in session easily, but we have session
+                WHERE ja.id = ?
+            `, [user_id, session.user?.email, id]);
+
+            if (details.length > 0) {
+                const info = details[0];
+                const adderName = session.user?.name || info.adder_name || "Admin";
+
+                const { sendEmail, getPanelMemberAddedEmailTemplate } = await import("@/lib/email");
+                const emailContent = getPanelMemberAddedEmailTemplate(
+                    info.member_name,
+                    adderName,
+                    info.candidate_name,
+                    info.job_title,
+                    info.interview_date
+                );
+
+                await sendEmail(info.member_email, `Added to Interview Panel - ${info.job_title}`, emailContent);
+            }
+        } catch (emailErr) {
+            console.error("Failed to send panel email", emailErr);
+        }
+        // -------------------------------
+
         return NextResponse.json({ success: true, message: "Added to panel" });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
