@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Search, Info, ArrowRight, Eye } from "lucide-react";
+import { toast } from "sonner";
 import RichTextEditor from "./RichTextEditor";
 
 type StepCreateFormProps = {
@@ -32,6 +33,71 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
         setFormData({ ...formData, [field]: value });
     };
 
+    const [departments, setDepartments] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchDepartments = async () => {
+            try {
+                const res = await fetch("/api/departments");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.data) {
+                        setDepartments(data.data);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch departments", error);
+                toast.error("Failed to load departments");
+            }
+        };
+        fetchDepartments();
+    }, []);
+
+    const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const selectedId = e.target.value;
+        const selectedDept = departments.find((d) => d.id === selectedId);
+
+        if (selectedDept) {
+            setFormData({
+                ...formData,
+                department: selectedDept.dept,
+                department_id: selectedDept.id,
+                hod_id: selectedDept.hod
+            });
+        } else {
+            setFormData({
+                ...formData,
+                department: "",
+                department_id: null,
+                hod_id: null
+            });
+        }
+    };
+
+    // Set default location on mount if empty
+    useEffect(() => {
+        if (!formData.location) {
+            updateField("location", "Multan, Pakistan");
+        }
+    }, []);
+
+    const handleNext = () => {
+        // Validate required fields
+        const errors: string[] = [];
+        if (!formData.job_title?.trim()) errors.push("Job Title");
+        if (!formData.location?.trim()) errors.push("Location");
+        if (!formData.work_location_type) errors.push("Work Location Type");
+        if (!formData.company_description?.trim()) errors.push("Company Description");
+        if (!formData.description?.trim()) errors.push("Job Description");
+        if (!formData.qualifications?.trim()) errors.push("Qualifications");
+
+        if (errors.length > 0) {
+            toast.error(`Please fill in required fields: ${errors.join(", ")}`);
+            return;
+        }
+        onNext();
+    };
+
     return (
         <div>
             {/* Company Banner */}
@@ -58,18 +124,24 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
                     placeholder="Start typing your job title to view templates"
                 />
             </div>
+
             {/* Department */}
             <div className="mb-4">
                 <label className="block text-sm text-[#333] mb-1">
-                    Department
+                    Department<span className="text-red-500">*</span>
                 </label>
-                <input
-                    type="text"
-                    value={formData.department || ""}
-                    onChange={(e) => updateField("department", e.target.value)}
-                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                    placeholder="e.g. Engineering, Sales, Human Resources"
-                />
+                <select
+                    value={formData.department_id || ""}
+                    onChange={handleDepartmentChange}
+                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white"
+                >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                            {dept.dept}
+                        </option>
+                    ))}
+                </select>
             </div>
 
             {/* Location */}
@@ -85,10 +157,10 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
                 <div className="relative">
                     <input
                         type="text"
-                        value={formData.location || ""}
+                        value={formData.location || "Multan, Pakistan"}
                         onChange={(e) => updateField("location", e.target.value)}
                         className="w-full h-10 px-3 pr-10 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                        placeholder="Enter job location"
+                        placeholder="Multan, Pakistan"
                     />
                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#999]" />
                 </div>
@@ -139,6 +211,7 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
                 value={formData.company_description || ""}
                 onChange={(value) => updateField("company_description", value)}
                 placeholder="Describe your company..."
+                required={true}
             />
 
             <RichTextEditor
@@ -146,6 +219,7 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
                 value={formData.description || ""}
                 onChange={(value) => updateField("description", value)}
                 placeholder="Describe the responsibilities and day to day of the job"
+                required={true}
             />
 
             <RichTextEditor
@@ -153,6 +227,7 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
                 value={formData.qualifications || ""}
                 onChange={(value) => updateField("qualifications", value)}
                 placeholder="Describe the requirements and skills needed for the job"
+                required={true}
             />
 
             <RichTextEditor
@@ -178,7 +253,7 @@ export default function StepCreateForm({ formData, setFormData, onNext }: StepCr
             <div className="flex items-center gap-4 pt-4 border-t border-[#E6E6E6]">
                 <button
                     type="button"
-                    onClick={onNext}
+                    onClick={handleNext}
                     className="flex items-center gap-2 px-5 py-2 bg-[#238740] text-white text-sm font-medium rounded hover:bg-[#1d7235] transition-colors"
                 >
                     Next

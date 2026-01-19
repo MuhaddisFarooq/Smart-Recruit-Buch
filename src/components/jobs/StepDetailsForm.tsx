@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { ArrowRight, X, Info } from "lucide-react";
 
 type StepDetailsFormProps = {
@@ -54,6 +55,12 @@ export default function StepDetailsForm({ formData, setFormData, onNext, onBack 
         setFormData({ ...formData, [field]: value });
     };
 
+    // Lock Industry and Function by default
+    useEffect(() => {
+        if (!formData.industry) updateField("industry", "Hospital And Health Care");
+        if (!formData.function) updateField("function", "Health Care Provider");
+    }, []);
+
     return (
         <div>
             {/* Section Title */}
@@ -67,24 +74,12 @@ export default function StepDetailsForm({ formData, setFormData, onNext, onBack 
                     </label>
                     <div className="relative">
                         <select
-                            value={formData.industry || ""}
-                            onChange={(e) => updateField("industry", e.target.value)}
-                            className="w-full h-10 px-3 pr-10 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white appearance-none"
+                            value={formData.industry || "Hospital And Health Care"}
+                            disabled={true}
+                            className="w-full h-10 px-3 pr-10 text-sm border border-[#D1D1D1] rounded focus:outline-none bg-gray-100 text-gray-500 appearance-none cursor-not-allowed"
                         >
-                            <option value="">Select industry</option>
-                            {INDUSTRIES.map((ind) => (
-                                <option key={ind} value={ind}>{ind}</option>
-                            ))}
+                            <option value="Hospital And Health Care">Hospital And Health Care</option>
                         </select>
-                        {formData.industry && (
-                            <button
-                                type="button"
-                                onClick={() => updateField("industry", "")}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] hover:text-[#666]"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        )}
                     </div>
                 </div>
                 <div>
@@ -92,14 +87,11 @@ export default function StepDetailsForm({ formData, setFormData, onNext, onBack 
                         Function<span className="text-red-500">*</span>
                     </label>
                     <select
-                        value={formData.function || ""}
-                        onChange={(e) => updateField("function", e.target.value)}
-                        className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white"
+                        value={formData.function || "Health Care Provider"}
+                        disabled={true}
+                        className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none bg-gray-100 text-gray-500 cursor-not-allowed"
                     >
-                        <option value="">Select function</option>
-                        {FUNCTIONS.map((func) => (
-                            <option key={func} value={func}>{func}</option>
-                        ))}
+                        <option value="Health Care Provider">Health Care Provider</option>
                     </select>
                 </div>
             </div>

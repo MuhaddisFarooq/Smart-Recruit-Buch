@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { query, execute } from "@/lib/db";
+import { executeWebsiteQuery } from "@/lib/websiteDb";
 import { authOptions } from "@/lib/auth/options";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,91 @@ export async function PATCH(
         if (body.job_title !== undefined) { fields.push("job_title = ?"); values.push(body.job_title || null); }
         if (body.department !== undefined) { fields.push("department = ?"); values.push(body.department || null); }
         if (body.location !== undefined) { fields.push("location = ?"); values.push(body.location || null); }
-        if (body.status !== undefined) { fields.push("status = ?"); values.push(body.status || null); }
+        if (body.status !== undefined) {
+            fields.push("status = ?");
+            values.push(body.status || null);
+
+            // SYNC: Update external website status if job is advertised
+            // SYNC: Update external website status if job is advertised
+            try {
+                const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+                const constructedJobLink = `${baseUrl}/candidate/jobs/${id}`;
+                const legacyJobLinkMatch = `%/jobs/${id}/apply`;
+
+                const isExternalActive = body.status === 'active' || body.status === 'published';
+
+                if (!isExternalActive) {
+                    // CASE: Inactive -> DELETE from external DB to hide firmly
+                    console.log(`Removing job ${id} from External DB (Inactive)`);
+                    await executeWebsiteQuery(`
+                        DELETE FROM careers 
+                        WHERE job_link = ? OR job_link LIKE ?
+                    `, [constructedJobLink, legacyJobLinkMatch]);
+                } else {
+                    // CASE: Active -> Upsert (Insert or Update)
+                    console.log(`Syncing job ${id} to External DB (Active)`);
+
+                    // 1. Fetch full job details from local DB to ensure we have data for Insert
+                    const jobRows = await query(`SELECT * FROM jobs WHERE id = ?`, [id]) as any[];
+                    if (jobRows.length > 0) {
+                        const job = jobRows[0];
+                        const userEmail = updatedBy; // Use current updater
+
+                        // 2. Check existence in External DB (Legacy or New)
+                        let existingExternalJob = await executeWebsiteQuery(
+                            `SELECT id FROM careers WHERE job_link LIKE ?`,
+                            [legacyJobLinkMatch]
+                        ) as any[];
+
+                        if (existingExternalJob.length > 0) {
+                            // Update Legacy
+                            await executeWebsiteQuery(`
+                                UPDATE careers SET 
+                                    job_title = ?, type_of_employment = ?, department = ?, location = ?, 
+                                    job_link = ?, status = 'active', addedBy = ?, addedDate = NOW()
+                                WHERE id = ?
+                            `, [
+                                job.job_title, job.type_of_employment || "Full-Time", job.department, job.location,
+                                constructedJobLink, userEmail, existingExternalJob[0].id
+                            ]);
+                        } else {
+                            // Check New Link
+                            existingExternalJob = await executeWebsiteQuery(
+                                `SELECT id FROM careers WHERE job_link = ?`,
+                                [constructedJobLink]
+                            ) as any[];
+
+                            if (existingExternalJob.length > 0) {
+                                // Update Existing
+                                await executeWebsiteQuery(`
+                                    UPDATE careers SET 
+                                        job_title = ?, type_of_employment = ?, department = ?, location = ?, 
+                                        status = 'active', addedBy = ?, addedDate = NOW()
+                                    WHERE job_link = ?
+                                `, [
+                                    job.job_title, job.type_of_employment || "Full-Time", job.department, job.location,
+                                    userEmail, constructedJobLink
+                                ]);
+                            } else {
+                                // Insert New (Re-publish)
+                                await executeWebsiteQuery(`
+                                    INSERT INTO careers (
+                                        job_title, type_of_employment, department, location, 
+                                        job_link, status, addedBy, addedDate
+                                    ) VALUES (?, ?, ?, ?, ?, 'active', ?, NOW())
+                                `, [
+                                    job.job_title, job.type_of_employment || "Full-Time", job.department, job.location,
+                                    constructedJobLink, userEmail
+                                ]);
+                            }
+                        }
+                    }
+                }
+            } catch (syncError) {
+                console.error("Failed to sync status to external DB:", syncError);
+                // Don't fail the request, just log it.
+            }
+        }
         if (body.work_location_type !== undefined) { fields.push("work_location_type = ?"); values.push(body.work_location_type || null); }
         if (body.job_language !== undefined) { fields.push("job_language = ?"); values.push(body.job_language || null); }
         if (body.company_description !== undefined) { fields.push("company_description = ?"); values.push(body.company_description || null); }

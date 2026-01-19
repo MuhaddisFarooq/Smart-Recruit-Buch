@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
         // Extract all fields with null fallback to prevent undefined
         const job_title = body.job_title || null;
         const department = body.department || null;
+        const department_id = body.department_id || null;
+        const hod_id = body.hod_id || null;
         const location = body.location || null;
         const work_location_type = body.work_location_type || null;
         const job_language = body.job_language || null;
@@ -94,16 +96,18 @@ export async function POST(req: NextRequest) {
 
         const result = await execute(
             `INSERT INTO jobs (
-                job_title, department, location, work_location_type, job_language,
+                job_title, department, department_id, hod_id, location, work_location_type, job_language,
                 company_description, description, qualifications, additional_information,
                 video_url, industry, job_function, experience_level, type_of_employment,
                 salary_from, salary_to, currency, salary_period, hiring_team,
                 city, state, postal_code, country, auto_unpublish_date,
                 status, addedBy, addedDate, updatedBy, updatedDate
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
             [
                 job_title,
                 department,
+                department_id,
+                hod_id,
                 location,
                 work_location_type,
                 job_language,

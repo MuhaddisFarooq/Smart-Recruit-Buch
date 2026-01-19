@@ -1,8 +1,9 @@
 "use client";
-import React, { useEffect, Suspense } from "react";
+import React, { useEffect, Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Eye, EyeOff } from "lucide-react";
 import { useLoadingStore } from "@/store/useLoadingStore";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -28,6 +29,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showLoader, hideLoader } = useLoadingStore();
+  const [showPassword, setShowPassword] = useState(false);
 
   // If middleware bounced the user back:
   useEffect(() => {
@@ -84,7 +86,27 @@ function LoginForm() {
         </div>
         <div className="space-y-1">
           <label htmlFor="password" className="text-sm font-medium">Password</label>
-          <Input id="password" name="password" type="password" required />
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              className="pr-10" // Add padding right for the icon
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+              tabIndex={-1} // Skip tab index for better UX flow
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         <Button type="submit" className="bg-primary w-full shadow-md">Sign in</Button>
