@@ -15,6 +15,8 @@ type UserProfile = {
     first_name: string;
     last_name: string;
     position: string;
+    department?: string; // New field
+    designation?: string; // New field
     show_profile_on_jobs: boolean;
     street_address: string;
     city: string;
@@ -62,6 +64,8 @@ export default function SettingsPage() {
         first_name: "",
         last_name: "",
         position: "",
+        department: "",
+        designation: "",
         show_profile_on_jobs: false,
         street_address: "",
         city: "",
@@ -97,10 +101,8 @@ export default function SettingsPage() {
     };
 
     const handleSave = async () => {
-        if (!profile.first_name || !profile.last_name) {
-            toast.error("First name and last name are required");
-            return;
-        }
+        // Name is now managed externally, so validation is less critical here, 
+        // but keeping it doesn't hurt if we allow editing other things.
 
         setSaving(true);
         try {
@@ -148,26 +150,9 @@ export default function SettingsPage() {
     };
 
     const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-            const res = await fetch("/api/uploads?folder=avatars", {
-                method: "POST",
-                body: formData,
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                setProfile({ ...profile, avatar_url: data.url });
-                toast.success("Photo uploaded");
-            }
-        } catch (error) {
-            toast.error("Failed to upload photo");
-        }
+        // Disabled for externally managed profiles
+        toast.info("Profile photo is managed by your organization.");
+        return;
     };
 
     const getInitials = () => {
@@ -212,7 +197,7 @@ export default function SettingsPage() {
                 <div className="px-4 md:px-6 py-6 space-y-8">
                     {/* Profile Photo */}
                     <div>
-                        <p className="text-xs text-[#666] mb-3">Profile photo</p>
+                        <p className="text-xs text-[#666] mb-3">Profile photo <span className="text-xs text-[#999]">(Managed by Org)</span></p>
                         <div className="flex items-center gap-4">
                             {profile.avatar_url ? (
                                 <Image
@@ -227,47 +212,41 @@ export default function SettingsPage() {
                                     {getInitials()}
                                 </div>
                             )}
-                            <label className="text-[#238740] text-sm cursor-pointer hover:underline">
-                                Choose an image
-                                <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
-                            </label>
+                            {/* Hidden upload for external users */}
                         </div>
                     </div>
 
                     {/* Basic Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs text-[#666] mb-1">First name<span className="text-red-500">*</span></label>
+                            <label className="block text-xs text-[#666] mb-1">Department <span className="text-[#999]">🔒</span></label>
                             <input
                                 type="text"
-                                value={profile.first_name || ""}
-                                onChange={(e) => setProfile({ ...profile, first_name: e.target.value })}
-                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                placeholder="First name"
+                                value={profile.department || ""}
+                                disabled
+                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded bg-[#F5F5F5] text-[#666] cursor-not-allowed"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-[#666] mb-1">Last name<span className="text-red-500">*</span></label>
+                            <label className="block text-xs text-[#666] mb-1">Designation <span className="text-[#999]">🔒</span></label>
                             <input
                                 type="text"
-                                value={profile.last_name || ""}
-                                onChange={(e) => setProfile({ ...profile, last_name: e.target.value })}
-                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                placeholder="Last name"
+                                value={profile.designation || ""}
+                                disabled
+                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded bg-[#F5F5F5] text-[#666] cursor-not-allowed"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-[#666] mb-1">Position</label>
+                            <label className="block text-xs text-[#666] mb-1">Position (Job Title) <span className="text-[#999]">🔒</span></label>
                             <input
                                 type="text"
                                 value={profile.position || ""}
-                                onChange={(e) => setProfile({ ...profile, position: e.target.value })}
-                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                placeholder="Add position"
+                                disabled
+                                className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded bg-[#F5F5F5] text-[#666] cursor-not-allowed"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-[#666] mb-1">Email <span className="text-[#999]">ⓘ</span></label>
+                            <label className="block text-xs text-[#666] mb-1">Email <span className="text-[#999]">🔒</span></label>
                             <input
                                 type="email"
                                 value={profile.email || ""}
@@ -277,112 +256,11 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    {/* Show profile checkbox */}
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={profile.show_profile_on_jobs || false}
-                            onChange={(e) => setProfile({ ...profile, show_profile_on_jobs: e.target.checked })}
-                            className="w-4 h-4 accent-[#238740]"
-                        />
-                        <span className="text-sm text-[#333]">Show my name and social profile on job ads I post</span>
-                    </label>
 
-                    {/* Contact Information */}
-                    <div>
-                        <h2 className="text-base font-medium text-[#333] mb-1">Contact information</h2>
-                        <p className="text-xs text-[#666] mb-4">Used in merge fields or email templates</p>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">Street address</label>
-                                <input
-                                    type="text"
-                                    value={profile.street_address || ""}
-                                    onChange={(e) => setProfile({ ...profile, street_address: e.target.value })}
-                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                    placeholder="Add street address"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">City</label>
-                                <input
-                                    type="text"
-                                    value={profile.city || ""}
-                                    onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                    placeholder="Add city"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">Country</label>
-                                <div className="relative">
-                                    <select
-                                        value={profile.country || ""}
-                                        onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-                                        className="w-full h-10 px-3 pr-10 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] appearance-none bg-white"
-                                    >
-                                        <option value="">Select country</option>
-                                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">Zip/postal code</label>
-                                <input
-                                    type="text"
-                                    value={profile.zip_code || ""}
-                                    onChange={(e) => setProfile({ ...profile, zip_code: e.target.value })}
-                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                    placeholder="Add Zip/postal code"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">Work phone</label>
-                                <div className="flex gap-2">
-                                    <select
-                                        value={profile.work_phone_code || ""}
-                                        onChange={(e) => setProfile({ ...profile, work_phone_code: e.target.value })}
-                                        className="w-20 h-10 px-2 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                    >
-                                        <option value=""></option>
-                                        {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-                                    </select>
-                                    <input
-                                        type="tel"
-                                        value={profile.work_phone || ""}
-                                        onChange={(e) => setProfile({ ...profile, work_phone: e.target.value })}
-                                        className="flex-1 h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                        placeholder="301 2345678"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">Cell phone</label>
-                                <div className="flex gap-2">
-                                    <select
-                                        value={profile.cell_phone_code || ""}
-                                        onChange={(e) => setProfile({ ...profile, cell_phone_code: e.target.value })}
-                                        className="w-20 h-10 px-2 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                    >
-                                        <option value=""></option>
-                                        {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-                                    </select>
-                                    <input
-                                        type="tel"
-                                        value={profile.cell_phone || ""}
-                                        onChange={(e) => setProfile({ ...profile, cell_phone: e.target.value })}
-                                        className="flex-1 h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                        placeholder="301 2345678"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     {/* Account Section */}
                     <div className="border-t border-[#E6E6E6] pt-6">
+
                         <h2 className="text-base font-medium text-[#333] mb-2">Account</h2>
                         <p className="text-xs text-[#666] mb-4">After deactivation you will no longer be able to use your account. This can't be undone.</p>
                         <button

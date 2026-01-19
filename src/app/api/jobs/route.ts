@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
                 salary_from, salary_to, currency, salary_period, hiring_team,
                 city, state, postal_code, country, auto_unpublish_date,
                 status, addedBy, addedDate, updatedBy, updatedDate
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
             [
                 job_title,
                 department,

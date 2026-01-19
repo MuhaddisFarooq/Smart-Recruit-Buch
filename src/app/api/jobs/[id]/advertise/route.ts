@@ -30,41 +30,46 @@ export async function POST(
         const userEmail = session.user?.email || "admin@example.com";
 
         // Construct Job Link (assuming portal link)
+        // Use environment variable for production URL, or fall back to request origin
         const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
         const jobLink = `${baseUrl}/candidate/jobs/${id}`;
 
+        const safeJobTitle = job.job_title || "Untitled Job";
+        const safeType = job.type_of_employment || "Full-Time";
+        const safeDept = job.department || "General";
+        const safeLoc = (job.city && job.country) ? `${job.city}, ${job.country}` : (job.location || "Multan, Pakistan");
 
         // 2. Check if already exists in Website DB
-        // First check for OLD link format to migrate it (using LIKE to ignore domain differences)
-        // e.g. matches both "http://localhost:3000/jobs/1/apply" and "https://career.buch.../jobs/1/apply"
+        // First check for OLD link format (ending in /apply) or generic match
+        // We want to force Update the link to the New Format (Details Page)
         let existingExternalJob = await executeWebsiteQuery(
-            `SELECT id FROM careers WHERE job_link LIKE ?`,
-            [`%/jobs/${id}/apply`]
+            `SELECT id FROM careers WHERE job_link LIKE ? OR job_link LIKE ?`,
+            [`%/jobs/${id}/apply`, `%/jobs/${id}`]
         ) as any[];
 
         if (existingExternalJob.length > 0) {
-            console.log("Found legacy job link, updating to new format...");
-            // Update legacy entry to new link format + standard fields
+            console.log("Found existing job advert, updating...");
+            // Update legacy/existing entry to ensure Link is correct
             await executeWebsiteQuery(`
                 UPDATE careers SET 
                     job_title = ?, 
                     type_of_employment = ?, 
                     department = ?, 
                     location = ?, 
-                    job_link = ?,  -- UPDATE LINK HERE
+                    job_link = ?,  -- FORCE UPDATE LINK CORRECTLY
                     status = ?, 
                     addedBy = ?,
                     addedDate = NOW()
                 WHERE id = ?
             `, [
-                job.job_title,
-                job.type_of_employment || "Full-Time",
-                job.department,
-                job.location,
-                jobLink, // Set NEW link
+                safeJobTitle,
+                safeType,
+                safeDept,
+                safeLoc,
+                jobLink, // Ensure this points to /candidate/jobs/[id] NOT /apply
                 "active",
                 userEmail,
-                existingExternalJob[0].id // Use ID from fuzzy search
+                existingExternalJob[0].id
             ]);
         } else {
             // Check for NEW link format
@@ -86,10 +91,10 @@ export async function POST(
                         addedDate = NOW()
                     WHERE job_link = ?
                 `, [
-                    job.job_title,
-                    job.type_of_employment || "Full-Time",
-                    job.department,
-                    job.location,
+                    safeJobTitle,
+                    safeType,
+                    safeDept,
+                    safeLoc,
                     "active",
                     userEmail,
                     jobLink
@@ -108,10 +113,10 @@ export async function POST(
                         addedDate
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
                 `, [
-                    job.job_title,
-                    job.type_of_employment || "Full-Time",
-                    job.department,
-                    job.location,
+                    safeJobTitle,
+                    safeType,
+                    safeDept,
+                    safeLoc,
                     jobLink,
                     "active",
                     userEmail

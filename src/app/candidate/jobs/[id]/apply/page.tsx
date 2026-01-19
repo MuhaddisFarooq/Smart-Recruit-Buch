@@ -47,6 +47,8 @@ export default function ApplyJobPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingUser, setIsFetchingUser] = useState(true);
 
+    const jobId = Array.isArray(params.id) ? params.id[0] : params.id;
+
     // Form State
     const [personalInfo, setPersonalInfo] = useState({
         name: "",
@@ -79,6 +81,10 @@ export default function ApplyJobPage() {
     const [newEdu, setNewEdu] = useState<Education>({
         institution: "", major: "", degree: "", location: "", description: "", startDate: "", endDate: "", isCurrent: false
     });
+
+    // Eligibility State
+    const [eligibility, setEligibility] = useState<{ eligible: boolean; score: number; reasons: string[]; missing_skills?: string[] } | null>(null);
+    const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
 
     useEffect(() => {
         if (session?.user) {
@@ -125,6 +131,8 @@ export default function ApplyJobPage() {
 
         setIsUploading(true);
         setIsParsing(true);
+        setEligibility(null); // Reset previous check
+
         const formData = new FormData();
         formData.append("file", file);
 
@@ -152,18 +160,21 @@ export default function ApplyJobPage() {
             }
 
             // Handle Parse Result
+            let resumeText = "";
             if (parseRes.ok) {
                 const parseData = await parseRes.json();
                 if (parseData.success && parseData.data) {
+                    resumeText = parseData.text; // Get extracted text
                     const { personalInfo: pi, socialLinks: sl, experience: exp, education: edu } = parseData.data;
 
                     if (pi) {
                         setPersonalInfo(prev => ({
                             ...prev,
-                            name: pi.name || prev.name,
-                            email: pi.email || prev.email,
-                            phone: pi.phone || prev.phone,
-                            city: pi.city || prev.city
+                            // Only overwrite if parsed data looks valid and substantial
+                            name: (pi.name && pi.name.length > 2) ? pi.name : prev.name,
+                            email: (pi.email && pi.email.includes("@")) ? pi.email : prev.email,
+                            phone: (pi.phone && pi.phone.length > 5) ? pi.phone : prev.phone,
+                            city: (pi.city && pi.city.length > 2) ? pi.city : prev.city
                         }));
                     }
                     if (sl) {
@@ -184,6 +195,31 @@ export default function ApplyJobPage() {
                 console.warn("Resume parsing failed, but upload succeeded.");
             }
 
+            // 3. Check Eligibility using extracted text
+            if (resumeText) {
+                setIsCheckingEligibility(true);
+                try {
+                    const eligRes = await fetch(`/api/jobs/${params.id}/check-eligibility`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ resumeText }),
+                    });
+                    const eligData = await eligRes.json();
+                    if (eligData.success) {
+                        setEligibility(eligData.analysis);
+                        if (!eligData.analysis.eligible) {
+                            toast.error("Resume does not meet job requirements.");
+                        } else {
+                            toast.success("You are eligible for this role!");
+                        }
+                    }
+                } catch (err) {
+                    console.error("Eligibility check failed", err);
+                } finally {
+                    setIsCheckingEligibility(false);
+                }
+            }
+
         } catch (error) {
             console.error("Upload/Parse error", error);
             toast.error("Error processing resume");
@@ -195,6 +231,13 @@ export default function ApplyJobPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Block submission if ineligible
+        if (eligibility && !eligibility.eligible) {
+            toast.error("You cannot apply as you do not meet the strict requirements.");
+            return;
+        }
+
         setIsLoading(true);
 
         const payload = {
@@ -259,9 +302,10 @@ export default function ApplyJobPage() {
             </div>
 
             <div className="relative z-10 container max-w-4xl mx-auto py-12 px-4 md:px-6">
+
                 {/* Back Link */}
                 <Link
-                    href={`/candidate/jobs/${params.id}`}
+                    href={`/candidate/jobs/${jobId}`}
                     className="inline-flex items-center text-white/80 hover:text-white mb-8 transition-colors group"
                 >
                     <div className="bg-white/10 p-2 rounded-full mr-3 group-hover:bg-white/20 transition-all">
@@ -283,7 +327,7 @@ export default function ApplyJobPage() {
                             <Card className="border-neutral-200 shadow-sm">
                                 <CardContent className="pt-6">
                                     {resumeUrl ? (
-                                        <div className={`border-2 border-dashed ${CUSTOM_GREEN_BORDER}/50 bg-[#b9d36c]/5 rounded-xl p-8 text-center transition-colors`}>
+                                        <div className={`border-2 border-dashed ${CUSTOM_GREEN_BORDER}/50 bg-[#b9d36c]/5 rounded-xl p-8 text-center transition-colors flow-root`}>
                                             <div className={`flex flex-col items-center justify-center gap-3 ${CUSTOM_GREEN_TEXT}`}>
                                                 <CheckCircle2 className="h-10 w-10" />
                                                 <div className="text-lg font-semibold text-neutral-700">Resume attached</div>
@@ -316,6 +360,57 @@ export default function ApplyJobPage() {
                                     )}
                                     {isUploading && <div className={`mt-4 text-center text-sm ${CUSTOM_GREEN_TEXT} font-medium animate-pulse`}>Uploading resume...</div>}
                                     {isParsing && !isUploading && <div className="mt-4 text-center text-sm text-blue-600 animate-pulse font-medium">AI is analyzing your resume content...</div>}
+                                    {isCheckingEligibility && (
+                                        <div className="mt-4 p-4 bg-blue-50 text-blue-700 rounded-lg flex items-center justify-center gap-2 border border-blue-100">
+                                            <Loader2 className="animate-spin h-5 w-5" />
+                                            Checking eligibility against job requirements...
+                                        </div>
+                                    )}
+
+                                    {/* ELIGIBILITY RESULT CARD */}
+                                    {eligibility && !isCheckingEligibility && (
+                                        <div className={`mt-6 p-6 rounded-xl border ${eligibility.eligible ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                            <div className="flex items-start gap-4">
+                                                <div className={`p-2 rounded-full ${eligibility.eligible ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                    {eligibility.eligible ? (
+                                                        <CheckCircle2 className="h-6 w-6 text-green-600" />
+                                                    ) : (
+                                                        <X className="h-6 w-6 text-red-600" />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className={`text-lg font-bold mb-1 ${eligibility.eligible ? 'text-green-800' : 'text-red-800'}`}>
+                                                        {eligibility.eligible ? "You are eligible for this position!" : "Application not accepted"}
+                                                    </h3>
+                                                    <p className={`text-sm mb-3 ${eligibility.eligible ? 'text-green-700' : 'text-red-700'}`}>
+                                                        {eligibility.eligible
+                                                            ? "Your profile matches the core requirements for this job."
+                                                            : "Unfortunately, your resume does not meet the strict requirements for this role."}
+                                                    </p>
+
+                                                    {/* Reasons / Missing Skills */}
+                                                    <div className="space-y-1">
+                                                        {eligibility.reasons?.map((reason, i) => (
+                                                            <div key={i} className={`text-sm flex items-start gap-2 ${eligibility.eligible ? 'text-green-700' : 'text-red-700'}`}>
+                                                                <span>•</span> {reason}
+                                                            </div>
+                                                        ))}
+                                                        {eligibility.missing_skills?.map((skill, i) => (
+                                                            <div key={`miss-${i}`} className="text-sm flex items-start gap-2 text-red-700 font-medium">
+                                                                <span>•</span> Missing: {skill}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                {eligibility.eligible && (
+                                                    <div className="text-center bg-white/50 p-2 rounded-lg border border-green-200">
+                                                        <span className="block text-2xl font-bold text-green-700">{eligibility.score}%</span>
+                                                        <span className="text-xs text-green-600 font-medium">Match</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
@@ -443,8 +538,16 @@ export default function ApplyJobPage() {
                             </Card>
 
                             <div className="flex justify-end gap-4 pt-4 pb-8">
-                                <Button type="button" variant="outline" size="lg" onClick={() => router.back()} className="text-base border-neutral-300">Cancel</Button>
-                                <Button type="submit" disabled={isLoading} size="lg" className={`${CUSTOM_GREEN_BG} ${CUSTOM_GREEN_HOVER} text-neutral-900 font-bold min-w-[240px] text-lg shadow-lg`}>
+                                <Button type="button" variant="outline" size="lg" onClick={() => router.push(`/candidate/jobs/${jobId}`)} className="text-base border-neutral-300">Cancel</Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isLoading || isCheckingEligibility || (eligibility ? !eligibility.eligible : false)}
+                                    size="lg"
+                                    className={`
+                                        ${eligibility && !eligibility.eligible ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed' : `${CUSTOM_GREEN_BG} ${CUSTOM_GREEN_HOVER} text-neutral-900 shadow-lg`}
+                                        font-bold min-w-[240px] text-lg
+                                    `}
+                                >
                                     {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Submit Application"}
                                 </Button>
                             </div>

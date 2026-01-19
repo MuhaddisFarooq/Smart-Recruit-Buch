@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Search, MapPin, Briefcase, Clock, ChevronRight, Building2, Globe } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -173,9 +174,9 @@ export default function CandidateJobsPage() {
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                         {filteredJobs.map((job) => (
-                            <div
+                            <Link
                                 key={job.id}
-                                onClick={() => router.push(`/candidate/jobs/${job.id}`)}
+                                href={`/candidate/jobs/${job.id}`}
                                 className="group bg-white rounded-2xl p-6 border border-neutral-100 shadow-sm hover:shadow-xl hover:border-[#b9d36c]/50 transition-all duration-300 cursor-pointer flex flex-col h-full"
                             >
                                 <div className="flex items-start justify-between mb-6">
@@ -222,7 +223,7 @@ export default function CandidateJobsPage() {
                                         </span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         ))}
                     </div>
                 )}

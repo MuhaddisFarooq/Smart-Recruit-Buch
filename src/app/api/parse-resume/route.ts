@@ -195,7 +195,7 @@ export async function POST(req: Request) {
             };
         }
 
-        return NextResponse.json({ success: true, data: parsedData });
+        return NextResponse.json({ success: true, data: parsedData, text });
 
     } catch (error: any) {
         console.error("Resume Parse Handler Error", error);

@@ -2,7 +2,7 @@
 import type { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { query } from "@/lib/db";
+import { query, execute } from "@/lib/db";
 
 // Keep this in server-only code. Do NOT import in client bundles.
 export type PermAction = "view" | "new" | "edit" | "delete" | "export" | "import";
@@ -143,34 +143,143 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Missing credentials");
         }
 
-        // Pull user (ensure email is compared lower-case)
-        const rows = await query<DBUser>(
-          "SELECT id, email, name, password, role, status, group_id FROM users WHERE email = ? LIMIT 1",
-          [email]
-        ).catch(() => [] as any);
+        try {
+          // 1. Check Local DB First
+          const rows = await query<DBUser>(
+            "SELECT id, email, name, password, role, status, group_id FROM users WHERE email = ? LIMIT 1",
+            [email]
+          ).catch(() => [] as any);
 
-        const u = rows[0];
-        if (!u) return null;                 // NextAuth returns generic error
-        if ((u.status || "active") !== "active") {
-          throw new Error("Account is inactive");
+          let u = rows[0];
+
+          // If user exists locally, try to verify password
+          if (u && u.password) {
+            const isValid = await bcrypt.compare(password, u.password);
+            if (isValid) {
+              if ((u.status || "active") !== "active") {
+                throw new Error("Account is inactive");
+              }
+              // Return local user immediately if password matches
+              // This handles Candidates and regular local users
+              const perms = await loadPermissionMapForUser(u).catch(() => ({} as PermissionMap));
+              return {
+                id: String(u.id),
+                name: u.name || u.email,
+                email: u.email,
+                role: u.role || "candidate", // Default to candidate if role is missing
+                group_id: u.group_id ?? null,
+                perms,
+              } as any;
+            }
+          }
+
+          // 2. If Local Auth Failed (User not found OR Password mismatch), Try External API
+          // Only proceed if password didn't match local hash (for admins/employees using external credentials)
+
+          let extUser = null;
+          try {
+            const params = new URLSearchParams();
+            params.append("email", email);
+            params.append("password", password);
+
+            const apiRes = await fetch(`https://buchhospital.com/ppapi/dash_auth.php?${params.toString()}`, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json, */*",
+                "Connection": "keep-alive"
+              }
+            });
+
+            if (apiRes.ok) {
+              const apiData = await apiRes.json();
+              if (Array.isArray(apiData) && apiData.length > 0) {
+                extUser = apiData[0];
+              }
+            }
+          } catch (fetchError) {
+            console.error("External Auth API Failed:", fetchError);
+            // Do NOT throw error here, just let extUser be null
+          }
+
+          if (extUser && extUser.emp_id) {
+            // External Auth Success - Sync with Local DB
+            if (u) {
+              // User exists: Update details
+              await query(
+                `UPDATE users SET 
+                     emp_id = ?, 
+                     name = ?, 
+                     department = ?, 
+                     designation = ?, 
+                     position = ?, 
+                     avatar_url = ? 
+                     WHERE id = ?`,
+                [
+                  extUser.emp_id,
+                  extUser.name,
+                  extUser.department,
+                  extUser.designation,
+                  extUser.designation,
+                  extUser.profile_pic,
+                  u.id
+                ]
+              );
+              // Update local object for the session
+              u.name = extUser.name;
+            } else {
+              // User does not exist: Create new user (Auto-Provisioning)
+              const insertRes = await execute(
+                `INSERT INTO users (email, password, name, emp_id, department, designation, position, avatar_url, role, status)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'admin', 'active')`,
+                [
+                  email,
+                  "$2a$10$dummyhashformigratedusers00000000000000000000000000", // Dummy bcrypt hash
+                  extUser.name,
+                  extUser.emp_id,
+                  extUser.department,
+                  extUser.designation,
+                  extUser.designation,
+                  extUser.profile_pic
+                ]
+              );
+
+              u = {
+                id: insertRes.insertId,
+                email: email,
+                name: extUser.name,
+                password: "EXTERNAL_AUTH",
+                role: "admin",
+                status: "active",
+                group_id: null
+              };
+            }
+
+            if ((u.status || "active") !== "active") {
+              throw new Error("Account is inactive");
+            }
+
+            const finalRole = (u.role && u.role !== 'candidate') ? u.role : 'admin';
+            const perms = await loadPermissionMapForUser(u).catch(() => ({} as PermissionMap));
+
+            return {
+              id: String(u.id),
+              name: u.name || u.email,
+              email: u.email,
+              role: finalRole,
+              group_id: u.group_id ?? null,
+              perms,
+            } as any;
+          }
+
+          // If we reached here:
+          // 1. Local auth failed (or user not found)
+          // 2. External auth failed (or API error)
+          return null;
+
+        } catch (error) {
+          console.error("Authorize Error:", error);
+          return null;
         }
-
-        const ok = await bcrypt.compare(password, u.password);
-        if (!ok) return null;
-
-        // Load permissions (never throw)
-        const perms = await loadPermissionMapForUser(u).catch((error) => {
-          return {} as PermissionMap;
-        });
-
-        return {
-          id: String(u.id),
-          name: u.name || u.email,
-          email: u.email,
-          role: u.role || "user",
-          group_id: u.group_id ?? null,
-          perms,
-        } as any;
       },
     }),
   ],

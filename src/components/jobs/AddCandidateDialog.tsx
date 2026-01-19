@@ -79,6 +79,11 @@ export default function AddCandidateDialog({
     const [isParsing, setIsParsing] = useState(false);
     const [activeTab, setActiveTab] = useState("brief");
 
+    // Eligibility State
+    const [resumeText, setResumeText] = useState("");
+    const [eligibility, setEligibility] = useState<{ eligible: boolean; score: number; reasons: string[]; missing_skills?: string[] } | null>(null);
+    const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
+
     // Temp State for new items
     const [newExp, setNewExp] = useState<Experience>({ title: "", company: "", location: "", startDate: "", endDate: "", current: false, description: "" });
     const [newEdu, setNewEdu] = useState<Education>({ school: "", degree: "", field: "", startDate: "", endDate: "", current: false, description: "" });
@@ -119,6 +124,37 @@ export default function AddCandidateDialog({
         }
     };
 
+    // Strict Eligibility Check
+    useEffect(() => {
+        if (resumeText && selectedJobId) {
+            checkEligibility(resumeText, selectedJobId);
+        }
+    }, [resumeText, selectedJobId]);
+
+    const checkEligibility = async (text: string, jId: string) => {
+        setIsCheckingEligibility(true);
+        try {
+            const res = await fetch(`/api/jobs/${jId}/check-eligibility`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ resumeText: text }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setEligibility(data.analysis);
+                if (!data.analysis.eligible) {
+                    toast.error("Candidate is NOT eligible for this role");
+                } else {
+                    toast.success("Candidate matches job requirements");
+                }
+            }
+        } catch (err) {
+            console.error("Eligibility Check failed", err);
+        } finally {
+            setIsCheckingEligibility(false);
+        }
+    };
+
     // Handlers
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -143,6 +179,7 @@ export default function AddCandidateDialog({
             const parseJson = await parseRes.json();
 
             if (parseJson.success && parseJson.data) {
+                setResumeText(parseJson.text || ""); // Store full text for validation
                 const { personalInfo, experience, education, socialLinks } = parseJson.data;
 
                 setFormData(prev => ({
@@ -288,6 +325,52 @@ export default function AddCandidateDialog({
                         </div>
                     ) : (
                         <div className="space-y-6">
+                            {/* ELIGIBILITY ALERT */}
+                            {isCheckingEligibility && (
+                                <div className="p-4 bg-blue-50 text-blue-700 rounded-lg flex items-center justify-center gap-2 border border-blue-100 mb-4">
+                                    <Loader2 className="animate-spin h-5 w-5" />
+                                    AI is checking candidate eligibility against Job Description...
+                                </div>
+                            )}
+
+                            {eligibility && !isCheckingEligibility && (
+                                <div className={`p-4 rounded-xl border mb-4 flex items-start gap-4 ${eligibility.eligible ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                    <div className={`p-2 rounded-full ${eligibility.eligible ? 'bg-green-100' : 'bg-red-100'}`}>
+                                        {eligibility.eligible ? (
+                                            <CheckCircle2 className="h-6 w-6 text-green-600" />
+                                        ) : (
+                                            <X className="h-6 w-6 text-red-600" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className={`text-lg font-bold mb-1 ${eligibility.eligible ? 'text-green-800' : 'text-red-800'}`}>
+                                            {eligibility.eligible ? "Eligible Candidate" : "Candidate Not Eligible"}
+                                        </h3>
+                                        <p className={`text-sm mb-2 ${eligibility.eligible ? 'text-green-700' : 'text-red-700'}`}>
+                                            {eligibility.eligible
+                                                ? "Candidate matches the core requirements."
+                                                : "Candidate does not meet strict job requirements. Application blocked."}
+                                        </p>
+                                        <div className="space-y-1">
+                                            {eligibility.reasons?.map((reason, i) => (
+                                                <div key={i} className={`text-sm flex items-start gap-2 ${eligibility.eligible ? 'text-green-700' : 'text-red-700'}`}>
+                                                    <span>•</span> {reason}
+                                                </div>
+                                            ))}
+                                            {eligibility.missing_skills?.map((skill, i) => (
+                                                <div key={`miss-${i}`} className="text-sm flex items-start gap-2 text-red-700 font-bold">
+                                                    <span>•</span> Missing: {skill}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="text-center bg-white/50 p-2 rounded-lg border border-gray-200">
+                                        <span className={`block text-2xl font-bold ${eligibility.eligible ? 'text-green-700' : 'text-red-700'}`}>{eligibility.score}%</span>
+                                        <span className="text-xs text-gray-600 font-medium">Match</span>
+                                    </div>
+                                </div>
+                            )}
+
                             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                                 <TabsList className="w-full justify-start bg-transparent border-b rounded-none p-0 h-auto gap-6">
                                     {["brief", "experience", "education", "additional_info"].map(tab => (
@@ -543,7 +626,13 @@ export default function AddCandidateDialog({
                 {mode === "manual" && (
                     <DialogFooter className="border-t p-4 bg-gray-50">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                        <Button className="bg-green-700 hover:bg-green-800 text-white" onClick={handleSave}>Add candidate</Button>
+                        <Button
+                            className={`${eligibility && !eligibility.eligible ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-700 hover:bg-green-800'} text-white`}
+                            onClick={handleSave}
+                            disabled={eligibility ? !eligibility.eligible : false}
+                        >
+                            {eligibility && !eligibility.eligible ? "Ineligible - Blocked" : "Add candidate"}
+                        </Button>
                     </DialogFooter>
                 )}
             </DialogContent>
