@@ -6,13 +6,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function RegisterPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -23,27 +21,20 @@ export default function RegisterPage() {
         const email = String(form.get("email") || "").trim();
         const cnic = String(form.get("cnic") || "").trim();
         const phone = String(form.get("phone") || "").trim();
-        const password = String(form.get("password") || "").trim();
-        const confirmPassword = String(form.get("confirmPassword") || "").trim();
-
-        if (password !== confirmPassword) {
-            toast.error("Passwords do not match");
-            setIsLoading(false);
-            return;
-        }
 
         try {
-            const res = await fetch("/api/auth/register", {
+            const res = await fetch("/api/auth/register/initiate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, password, cnic, phone }),
+                body: JSON.stringify({ name, email, cnic, phone }),
             });
 
             const data = await res.json();
 
             if (res.ok) {
-                toast.success("Registration successful! Please login.");
-                router.push("/");
+                toast.success("Verification code sent to your email.");
+                // Use hard navigation to ensure we load the new page fresh
+                window.location.href = `/verify-otp?email=${encodeURIComponent(email)}`;
             } else {
                 toast.error(data.error || "Registration failed");
             }
@@ -71,7 +62,7 @@ export default function RegisterPage() {
                     <Input id="name" name="name" type="text" placeholder="John Doe" required />
                 </div>
                 <div className="space-y-1">
-                    <label htmlFor="cnic" className="text-sm font-medium">CNIC (13 digits)</label>
+                    <label htmlFor="cnic" className="text-sm font-medium">CNIC (13 digits without dashes)</label>
                     <Input
                         id="cnic"
                         name="cnic"
@@ -92,49 +83,9 @@ export default function RegisterPage() {
                     <label htmlFor="email" className="text-sm font-medium">Email</label>
                     <Input id="email" name="email" type="email" placeholder="example@buchhospital.com" required />
                 </div>
-                <div className="space-y-1">
-                    <label htmlFor="password" className="text-sm font-medium">Password</label>
-                    <div className="relative">
-                        <Input
-                            id="password"
-                            name="password"
-                            type={showPassword ? "text" : "password"}
-                            required
-                            className="pr-10"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
-                            tabIndex={-1}
-                        >
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                    </div>
-                </div>
-                <div className="space-y-1">
-                    <label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</label>
-                    <div className="relative">
-                        <Input
-                            id="confirmPassword"
-                            name="confirmPassword"
-                            type={showConfirmPassword ? "text" : "password"}
-                            required
-                            className="pr-10"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
-                            tabIndex={-1}
-                        >
-                            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                    </div>
-                </div>
 
                 <Button type="submit" className="bg-[#b9d36c] hover:bg-[#a8c65f] text-white w-full shadow-md" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Register"}
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Next"}
                 </Button>
 
                 <div className="text-center text-sm mt-4">

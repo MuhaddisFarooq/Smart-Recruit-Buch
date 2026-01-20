@@ -14,7 +14,7 @@ export async function middleware(req: NextRequest) {
     !req.nextUrl.pathname.endsWith("/message");
 
   // If not signed in, send to sign-in page ONLY if not already there AND not a public path
-  if (!token && req.nextUrl.pathname !== "/" && req.nextUrl.pathname !== "/register" && !isPublicCandidatePath) {
+  if (!token && req.nextUrl.pathname !== "/" && req.nextUrl.pathname !== "/register" && req.nextUrl.pathname !== "/verify-otp" && !isPublicCandidatePath) {
     // If trying to access a protected page (like apply), redirect to register/login?
     // User asked to be prompted to register. Let's send to /register?callbackUrl=... or just /register
     // But standard is login usually. I'll stick to / (login) or /register if user insists. 

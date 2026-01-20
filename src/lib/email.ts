@@ -83,3 +83,19 @@ export const getPanelMemberAddedEmailTemplate = (
     </div>
     `;
 };
+
+export const getOTPEmailTemplate = (otp: string) => {
+    return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #238740;">Verify Your Email</h2>
+        <p>Thank you for registering with Buch International Hospital.</p>
+        <p>Please use the following One-Time Password (OTP) to complete your registration:</p>
+        <h1 style="color: #238740; letter-spacing: 5px; background: #f0fdf4; padding: 10px; display: inline-block;">${otp}</h1>
+        <p>This code is valid for 10 minutes.</p>
+        <p>If you did not request this, please ignore this email.</p>
+        <br/>
+        <p>Best regards,</p>
+        <p><strong>IT Team</strong><br/>Buch International Hospital</p>
+    </div>
+    `;
+};
