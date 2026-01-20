@@ -82,8 +82,9 @@ export async function PATCH(
 
             // SYNC: Update external website status if job is advertised
             // SYNC: Update external website status if job is advertised
+            // SYNC: Update external website status if job is advertised
             try {
-                const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+                const baseUrl = process.env.NEXTAUTH_URL || "https://career.buchhospital.com";
                 const constructedJobLink = `${baseUrl}/candidate/jobs/${id}`;
                 const legacyJobLinkMatch = `%/jobs/${id}/apply`;
 

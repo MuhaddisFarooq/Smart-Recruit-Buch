@@ -138,6 +138,40 @@ export async function POST(req: NextRequest) {
 
         const jobId = (result as any).insertId;
 
+        // Auto-add HOD to Hiring Team if hod_id is present
+        if (hod_id) {
+            try {
+                // Find user by emp_id (hod_id from external API)
+                // We check both emp_id and employee_id just in case, and also id if it matches PK
+                const hodUsers = await query(
+                    "SELECT id FROM users WHERE emp_id = ? OR employee_id = ? OR id = ? LIMIT 1",
+                    [hod_id, hod_id, hod_id]
+                );
+
+                if (Array.isArray(hodUsers) && hodUsers.length > 0) {
+                    const hodUserId = hodUsers[0].id;
+
+                    // Add as Hiring Manager
+                    await execute(
+                        `INSERT INTO job_hiring_team (job_id, user_id, role) 
+                         VALUES (?, ?, 'Hiring Manager')
+                         ON DUPLICATE KEY UPDATE role = role`, // Keep existing role if already there
+                        [jobId, hodUserId]
+                    );
+
+                    // If "Manage Panel" refers to being an interviewer/panelist, we might want to add that too?
+                    // But usually "Hiring Manager" implies access.
+                    // If the user meant "Panelist", we could add another row if the table allows (it has ID PK, but UNIQUE on job_id, user_id).
+                    // So one user one role per job?
+                    // "UNIQUE KEY unique_team_member (job_id, user_id)"
+                    // So a user can only have ONE role. 'Hiring Manager' is the highest role usually.
+                }
+            } catch (err) {
+                console.error("Error auto-adding HOD:", err);
+                // Don't fail the whole request
+            }
+        }
+
         // Insert hiring team members into job_hiring_team table
         if (body.hiring_team && Array.isArray(body.hiring_team) && body.hiring_team.length > 0) {
             const teamValues = body.hiring_team.map((member: any) => [

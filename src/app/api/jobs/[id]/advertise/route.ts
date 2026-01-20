@@ -30,8 +30,8 @@ export async function POST(
         const userEmail = session.user?.email || "admin@example.com";
 
         // Construct Job Link (assuming portal link)
-        // Use environment variable for production URL, or fall back to request origin
-        const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+        // Use environment variable for production URL, or fall back to production URL for safety
+        const baseUrl = process.env.NEXTAUTH_URL || "https://career.buchhospital.com";
         const jobLink = `${baseUrl}/candidate/jobs/${id}`;
 
         const safeJobTitle = job.job_title || "Untitled Job";
