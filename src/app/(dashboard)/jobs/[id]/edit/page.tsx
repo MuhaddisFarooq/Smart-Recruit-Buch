@@ -24,13 +24,6 @@ const LANGUAGES = [
     "Spanish",
 ];
 
-const COUNTRIES = [
-    "Afghanistan", "Australia", "Bangladesh", "Canada", "China", "Egypt", "France",
-    "Germany", "India", "Indonesia", "Iran", "Iraq", "Italy", "Japan", "Malaysia",
-    "Mexico", "Netherlands", "Pakistan", "Philippines", "Russia", "Saudi Arabia",
-    "South Africa", "South Korea", "Spain", "Turkey", "UAE", "UK", "USA", "Vietnam"
-];
-
 const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "AED", "SAR"];
 const SALARY_PERIODS = ["Monthly", "Yearly", "Hourly", "Weekly"];
 
@@ -38,11 +31,9 @@ type JobData = {
     id: number;
     job_title: string;
     department?: string;
+    department_id?: string;
+    hod_id?: string;
     location: string;
-    city: string;
-    state: string;
-    postal_code: string;
-    country: string;
     work_location_type: string;
     job_language: string;
     company_description: string;
@@ -66,16 +57,15 @@ export default function EditJobPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [departments, setDepartments] = useState<any[]>([]);
 
     const [formData, setFormData] = useState<JobData>({
         id: 0,
         job_title: "",
         department: "",
+        department_id: "",
+        hod_id: "",
         location: "",
-        city: "",
-        state: "",
-        postal_code: "",
-        country: "",
         work_location_type: "on-site",
         job_language: "English - English (US)",
         company_description: "",
@@ -93,7 +83,22 @@ export default function EditJobPage() {
 
     useEffect(() => {
         fetchJob();
+        fetchDepartments();
     }, [jobId]);
+
+    const fetchDepartments = async () => {
+        try {
+            const res = await fetch("/api/departments");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.data) {
+                    setDepartments(data.data);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch departments", error);
+        }
+    };
 
     const fetchJob = async () => {
         try {
@@ -219,86 +224,52 @@ export default function EditJobPage() {
                     {/* Department */}
                     <div className="mb-4">
                         <label className="block text-sm text-[#238740] mb-1">
-                            Department
+                            Department<span className="text-red-500">*</span>
                         </label>
-                        <input
-                            type="text"
-                            value={formData.department || ""}
-                            onChange={(e) => updateField("department", e.target.value)}
-                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                            placeholder="e.g. Engineering, Sales, Human Resources"
-                        />
+                        <select
+                            value={formData.department_id || ""}
+                            onChange={(e) => {
+                                const selectedId = e.target.value;
+                                const selectedDept = departments.find((d) => d.id === selectedId);
+                                if (selectedDept) {
+                                    setFormData({
+                                        ...formData,
+                                        department: selectedDept.dept,
+                                        department_id: selectedDept.id,
+                                        hod_id: selectedDept.hod
+                                    });
+                                } else {
+                                    setFormData({
+                                        ...formData,
+                                        department: "",
+                                        department_id: "",
+                                        hod_id: ""
+                                    });
+                                }
+                            }}
+                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white"
+                        >
+                            <option value="">Select Department</option>
+                            {departments.map((dept) => (
+                                <option key={dept.id} value={dept.id}>
+                                    {dept.dept}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Location Section */}
                     <div className="mb-4">
                         <div className="flex justify-between items-center mb-1">
                             <label className="text-sm text-[#238740]">Location<span className="text-red-500">*</span></label>
-                            <button className="text-xs text-[#238740] hover:underline flex items-center gap-1">
-                                <span>Fill with Google</span>
-                            </button>
                         </div>
-                        <p className="text-xs text-[#666] mb-2">Street address*</p>
                         <input
                             type="text"
                             value={formData.location || ""}
                             onChange={(e) => updateField("location", e.target.value)}
-                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] mb-3"
+                            className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
+                            placeholder="e.g. Multan, Pakistan"
                         />
-
-                        <div className="grid grid-cols-2 gap-4 mb-3">
-                            <div>
-                                <label className="block text-xs text-[#238740] mb-1">City*</label>
-                                <input
-                                    type="text"
-                                    value={formData.city || ""}
-                                    onChange={(e) => updateField("city", e.target.value)}
-                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">State or Province</label>
-                                <input
-                                    type="text"
-                                    value={formData.state || ""}
-                                    onChange={(e) => updateField("state", e.target.value)}
-                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs text-[#666] mb-1">Postal Code</label>
-                                <input
-                                    type="text"
-                                    value={formData.postal_code || ""}
-                                    onChange={(e) => updateField("postal_code", e.target.value)}
-                                    className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740]"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-[#238740] mb-1">Country*</label>
-                                <div className="relative">
-                                    <select
-                                        value={formData.country || ""}
-                                        onChange={(e) => updateField("country", e.target.value)}
-                                        className="w-full h-10 px-3 text-sm border border-[#D1D1D1] rounded focus:outline-none focus:border-[#238740] bg-white appearance-none"
-                                    >
-                                        <option value="">Select country</option>
-                                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                    {formData.country && (
-                                        <button
-                                            onClick={() => updateField("country", "")}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] hover:text-[#666]"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     {/* Work Location Type */}
@@ -518,7 +489,7 @@ export default function EditJobPage() {
 
                                 {/* Location */}
                                 <p className="text-sm text-[#666] mb-4">
-                                    {[formData.location, formData.city, formData.state, formData.country].filter(Boolean).join(", ") || "Location not specified"}
+                                    {formData.location || "Location not specified"}
                                 </p>
 
                                 {/* Company Description */}

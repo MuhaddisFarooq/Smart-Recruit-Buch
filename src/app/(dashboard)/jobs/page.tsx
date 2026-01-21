@@ -14,7 +14,7 @@ type Job = {
     job_title: string;
     location: string;
     status: string;
-    recruiter?: string;
+    hod_name?: string;
     hiring_manager?: string;
     addedBy?: string;
     department?: string;
@@ -27,6 +27,17 @@ type Job = {
     hired_count?: number;
 };
 
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 export default function JobsPage() {
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState("");
@@ -38,23 +49,52 @@ export default function JobsPage() {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const PAGE_SIZE = 15;
 
+    const [userAccess, setUserAccess] = useState<any>(null);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [jobToDelete, setJobToDelete] = useState<number | null>(null);
+
     useEffect(() => {
         fetchJobs();
+        fetchAccess();
     }, []);
+
+    const fetchAccess = async () => {
+        try {
+            const res = await fetch("/api/auth/access");
+            if (res.ok) {
+                const data = await res.json();
+                setUserAccess(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch access", error);
+        }
+    };
 
     const fetchJobs = async () => {
         try {
+            console.log("Fetching jobs...");
             const res = await fetch("/api/jobs");
+            console.log("Jobs response status:", res.status);
+
             if (res.ok) {
                 const data = await res.json();
+                console.log("Jobs data received:", data.length);
                 setJobs(data);
+            } else {
+                console.error("Failed to fetch jobs:", res.status, res.statusText);
+                toast.error(`Failed to load jobs: ${res.statusText}`);
             }
         } catch (error) {
             console.error("Error fetching jobs:", error);
+            toast.error("Network error while loading jobs");
         } finally {
             setLoading(false);
         }
     };
+
+    // ... (existing useMemo hooks)
+
+
 
     // Extract unique values for dynamic filters
     const uniqueLocations = useMemo(() => {
@@ -67,9 +107,9 @@ export default function JobsPage() {
         return [...new Set(managers)];
     }, [jobs]);
 
-    const uniqueRecruiters = useMemo(() => {
-        const recs = jobs.map(j => j.recruiter || j.addedBy).filter(Boolean) as string[];
-        return [...new Set(recs)];
+    const uniqueHods = useMemo(() => {
+        const hods = jobs.map(j => j.hod_name).filter(Boolean) as string[];
+        return [...new Set(hods)];
     }, [jobs]);
 
     const uniqueStatuses = useMemo(() => {
@@ -93,7 +133,7 @@ export default function JobsPage() {
             result = result.filter(job =>
                 job.job_title?.toLowerCase().includes(query) ||
                 job.location?.toLowerCase().includes(query) ||
-                job.recruiter?.toLowerCase().includes(query) ||
+                job.hod_name?.toLowerCase().includes(query) ||
                 job.hiring_manager?.toLowerCase().includes(query) ||
                 job.addedBy?.toLowerCase().includes(query)
             );
@@ -236,11 +276,16 @@ export default function JobsPage() {
         }
     };
 
-    const handleDelete = async (jobId: number) => {
-        if (!confirm("Are you sure you want to delete this job?")) return;
+    const handleDelete = (jobId: number) => {
+        setJobToDelete(jobId);
+        setDeleteConfirmOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!jobToDelete) return;
 
         try {
-            const res = await fetch(`/api/jobs/${jobId}`, {
+            const res = await fetch(`/api/jobs/${jobToDelete}`, {
                 method: "DELETE",
             });
 
@@ -252,6 +297,9 @@ export default function JobsPage() {
             }
         } catch (error) {
             toast.error("An error occurred");
+        } finally {
+            setDeleteConfirmOpen(false);
+            setJobToDelete(null);
         }
     };
 
@@ -281,7 +329,7 @@ export default function JobsPage() {
                         onClearAll={handleClearAll}
                         locations={uniqueLocations}
                         hiringManagers={uniqueHiringManagers}
-                        recruiters={uniqueRecruiters}
+                        hods={uniqueHods}
                         statuses={uniqueStatuses}
                         departments={uniqueDepartments}
                     />
@@ -312,6 +360,7 @@ export default function JobsPage() {
                                 onEdit={handleEdit}
                                 onUnpublish={handleUnpublish}
                                 onDelete={handleDelete}
+                                canDelete={userAccess?.canDelete ?? false}
                             />
                         ))
                     )}
@@ -322,6 +371,24 @@ export default function JobsPage() {
                     <LoadMoreButton onClick={handleLoadMore} loading={loadingMore} />
                 )}
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the job and remove all associated data.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
+                            Delete Job
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

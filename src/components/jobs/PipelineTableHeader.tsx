@@ -39,7 +39,7 @@ export default function PipelineTableHeader({ totalJobs, sortConfig, onSort }: P
             <div className="w-[24%] text-[#333] text-base font-semibold">Jobs ({totalJobs})</div>
 
             <div className="w-[10%]">
-                <SortableHeader label="Recruiter" sortKey="recruiter" />
+                <SortableHeader label="HOD" sortKey="hod_name" />
             </div>
 
             <div className="w-[10%]">

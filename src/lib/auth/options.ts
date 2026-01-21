@@ -203,8 +203,64 @@ export const authOptions: NextAuthOptions = {
 
           if (extUser && extUser.emp_id) {
             // External Auth Success - Sync with Local DB
+            // Determine role based on access level from external API
+            const accessLevel = (extUser.access || '').toLowerCase();
+            let mappedRole = null; // Start with NULL, strict check required
+
+            if (accessLevel === 'superadmin') {
+              mappedRole = 'admin';
+            } else if (accessLevel === 'hr') {
+              mappedRole = 'hr';
+            } else if (accessLevel === 'hod') {
+              mappedRole = 'hod';
+            } else {
+              // Access is null/empty. Check if they are actually an HOD via Department API
+              try {
+                console.log(`Checking HOD status for EmpID: ${extUser.emp_id}, Dept: ${extUser.department}`);
+                const deptRes = await fetch("https://buchhospital.com/ppapi/emp_department.php", { cache: 'no-store' });
+                if (deptRes.ok) {
+                  const deptData = await deptRes.json();
+                  // Check if this user's emp_id matches any HOD id in their department
+                  const isHod = deptData.data?.some((d: any) => {
+                    const match = String(d.hod) === String(extUser.emp_id);
+                    if (match) console.log(`>>> HOD MATCH CONFIRMED: ${d.dept} (HOD: ${d.hod})`);
+                    return match;
+                  });
+                  if (isHod) {
+                    mappedRole = 'hod';
+                    console.log(">>> Role assigned: HOD");
+                  } else {
+                    console.log(">>> No HOD match found in departments list.");
+                  }
+                }
+              } catch (e) {
+                console.error("Failed to check HOD status", e);
+              }
+            }
+
+            // If STILL no role (not Admin, HR, or HOD), check if they are in a Hiring Team
+            if (!mappedRole) {
+              // Check if this employee exists in any hiring team (by emp_id or email)
+              // We need to check if a user with this emp_id or email is in job_hiring_team
+              const userExists = await query<any>(
+                `SELECT u.id FROM users u 
+                     JOIN job_hiring_team ht ON ht.user_id = u.id 
+                     WHERE u.emp_id = ? OR u.email = ? LIMIT 1`,
+                [extUser.emp_id, email]
+              );
+
+              if (userExists && userExists.length > 0) {
+                mappedRole = 'user'; // Allowed: They are part of a team
+              }
+            }
+
+            // STRICT ACCESS: If no role assigned by now, DENY LOGIN
+            if (!mappedRole) {
+              throw new Error("Access Restricted: You are not part of any hiring team.");
+            }
+
             if (u) {
-              // User exists: Update details
+              // User exists: Update details including role based on access
               await query(
                 `UPDATE users SET 
                      emp_id = ?, 
@@ -212,7 +268,8 @@ export const authOptions: NextAuthOptions = {
                      department = ?, 
                      designation = ?, 
                      position = ?, 
-                     avatar_url = ? 
+                     avatar_url = ?,
+                     role = ?
                      WHERE id = ?`,
                 [
                   extUser.emp_id,
@@ -221,16 +278,20 @@ export const authOptions: NextAuthOptions = {
                   extUser.designation,
                   extUser.designation,
                   extUser.profile_pic,
+                  mappedRole,
                   u.id
                 ]
               );
               // Update local object for the session
               u.name = extUser.name;
+              u.role = mappedRole;
+              (u as any).department = extUser.department;
+              (u as any).emp_id = extUser.emp_id;
             } else {
               // User does not exist: Create new user (Auto-Provisioning)
               const insertRes = await execute(
                 `INSERT INTO users (email, password, name, emp_id, department, designation, position, avatar_url, role, status)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'admin', 'active')`,
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
                 [
                   email,
                   "$2a$10$dummyhashformigratedusers00000000000000000000000000", // Dummy bcrypt hash
@@ -239,7 +300,8 @@ export const authOptions: NextAuthOptions = {
                   extUser.department,
                   extUser.designation,
                   extUser.designation,
-                  extUser.profile_pic
+                  extUser.profile_pic,
+                  mappedRole
                 ]
               );
 
@@ -248,24 +310,28 @@ export const authOptions: NextAuthOptions = {
                 email: email,
                 name: extUser.name,
                 password: "EXTERNAL_AUTH",
-                role: "admin",
+                role: mappedRole,
                 status: "active",
                 group_id: null
-              };
+              } as any;
+              (u as any).department = extUser.department;
+              (u as any).emp_id = extUser.emp_id;
             }
 
             if ((u.status || "active") !== "active") {
               throw new Error("Account is inactive");
             }
 
-            const finalRole = (u.role && u.role !== 'candidate') ? u.role : 'admin';
             const perms = await loadPermissionMapForUser(u).catch(() => ({} as PermissionMap));
 
             return {
               id: String(u.id),
               name: u.name || u.email,
               email: u.email,
-              role: finalRole,
+              role: u.role || mappedRole,
+              access: (mappedRole && mappedRole !== 'candidate' && !accessLevel) ? mappedRole : accessLevel, // If promoted locally, use new role as access
+              emp_id: extUser.emp_id,
+              department: extUser.department,
               group_id: u.group_id ?? null,
               perms,
             } as any;
@@ -288,6 +354,9 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id; // Add ID to token
         token.role = (user as any).role || "user";
+        token.access = (user as any).access || "candidate";
+        token.emp_id = (user as any).emp_id || null;
+        token.department = (user as any).department || null;
         token.group_id = (user as any).group_id ?? null;
         token.perms = (user as any).perms || {};
       }
@@ -297,6 +366,9 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id || token.sub; // Add ID to session
         (session.user as any).role = token.role || "user";
+        (session.user as any).access = (token as any).access || "candidate";
+        (session.user as any).emp_id = (token as any).emp_id || null;
+        (session.user as any).department = (token as any).department || null;
         (session.user as any).group_id = (token as any).group_id ?? null;
         (session.user as any).perms = (token as any).perms || {};
       }

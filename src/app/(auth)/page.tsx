@@ -146,7 +146,7 @@ export default function Page() {
   return (
     <div className="w-full lg:w-[30%] flex flex-col justify-center p-8">
       <div className="text-center">
-        <img src="/buch-logo.png" alt="Company Logo" className="w-40 mx-auto pointer-events-none" />
+        <img src="/images/Buch_logo.png" alt="Company Logo" className="w-72 mx-auto pointer-events-none" />
       </div>
       <Suspense fallback={<div>Loading...</div>}>
         <LoginForm />

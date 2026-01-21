@@ -49,7 +49,7 @@ export default function RegisterPage() {
     return (
         <div className="w-full lg:w-[30%] flex flex-col justify-center p-8">
             <div className="text-center mb-8">
-                <img src="/buch-logo.png" alt="Company Logo" className="w-40 mx-auto pointer-events-none" />
+                <img src="/images/Buch_logo.png" alt="Company Logo" className="w-72 mx-auto pointer-events-none" />
             </div>
             <div className="text-center mb-6">
                 <h1 className="text-2xl font-bold">Create Account</h1>

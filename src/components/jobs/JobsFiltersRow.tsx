@@ -9,7 +9,7 @@ type JobsFiltersRowProps = {
     onClearAll: () => void;
     locations: string[];
     hiringManagers: string[];
-    recruiters: string[];
+    hods: string[];
     statuses: string[];
     departments: string[];
 };
@@ -56,8 +56,8 @@ function FilterDropdown({ label, options, selected, onChange, hasSearch = false 
             <button
                 onClick={() => setOpen(!open)}
                 className={`h-8 px-4 pr-7 text-sm border rounded-full flex items-center gap-1 transition-colors ${hasSelection
-                        ? "border-[#238740] bg-[#238740]/5 text-[#238740]"
-                        : "border-[#D1D1D1] bg-white text-[#555] hover:border-[#999]"
+                    ? "border-[#238740] bg-[#238740]/5 text-[#238740]"
+                    : "border-[#D1D1D1] bg-white text-[#555] hover:border-[#999]"
                     }`}
             >
                 {label}

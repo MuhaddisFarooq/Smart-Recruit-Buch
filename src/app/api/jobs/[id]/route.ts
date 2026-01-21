@@ -75,14 +75,15 @@ export async function PATCH(
 
         if (body.job_title !== undefined) { fields.push("job_title = ?"); values.push(body.job_title || null); }
         if (body.department !== undefined) { fields.push("department = ?"); values.push(body.department || null); }
+        if (body.department_id !== undefined) { fields.push("department_id = ?"); values.push(body.department_id || null); }
+        if (body.hod_id !== undefined) { fields.push("hod_id = ?"); values.push(body.hod_id || null); }
         if (body.location !== undefined) { fields.push("location = ?"); values.push(body.location || null); }
         if (body.status !== undefined) {
             fields.push("status = ?");
             values.push(body.status || null);
 
             // SYNC: Update external website status if job is advertised
-            // SYNC: Update external website status if job is advertised
-            // SYNC: Update external website status if job is advertised
+
             try {
                 const baseUrl = process.env.NEXTAUTH_URL || "https://career.buchhospital.com";
                 const constructedJobLink = `${baseUrl}/candidate/jobs/${id}`;
@@ -220,6 +221,92 @@ export async function PATCH(
             `UPDATE jobs SET ${fields.join(", ")} WHERE id = ?`,
             values
         );
+
+        // Auto-provision HOD if hod_id is provided
+        if (body.hod_id) {
+            try {
+                console.log("Auto-provisioning HOD for job update, HOD ID:", body.hod_id);
+
+                // First, try to find existing user by emp_id
+                let hodUsers = await query(
+                    "SELECT id, email, name FROM users WHERE emp_id = ? LIMIT 1",
+                    [body.hod_id]
+                ) as any[];
+
+                let hodUserId = null;
+
+                if (hodUsers.length > 0) {
+                    hodUserId = hodUsers[0].id;
+                    console.log("Found existing HOD user:", hodUsers[0].name);
+                } else {
+                    // Fetch HOD details from external API
+                    console.log("HOD not found locally, fetching from external API...");
+                    try {
+                        const apiRes = await fetch(`https://buchhospital.com/ppapi/emp_info.php?pin=BIH${body.hod_id}`, {
+                            headers: {
+                                "User-Agent": "Mozilla/5.0",
+                                "Accept": "application/json"
+                            }
+                        });
+
+                        if (apiRes.ok) {
+                            const apiData = await apiRes.json();
+
+                            if (apiData.status === 200 && apiData.data && apiData.data.length > 0) {
+                                const hodInfo = apiData.data[0];
+                                console.log("Fetched HOD info:", hodInfo.name, hodInfo.email);
+
+                                // Create the HOD user
+                                const insertResult = await execute(
+                                    `INSERT INTO users (email, name, emp_id, department, role, status, addedDate, addedBy)
+                                     VALUES (?, ?, ?, ?, 'hod', 'active', NOW(), ?)
+                                     ON DUPLICATE KEY UPDATE 
+                                        name = VALUES(name),
+                                        emp_id = VALUES(emp_id),
+                                        department = VALUES(department),
+                                        role = 'hod'`,
+                                    [
+                                        hodInfo.email,
+                                        hodInfo.name,
+                                        hodInfo.emp_id || body.hod_id,
+                                        hodInfo.department,
+                                        updatedBy
+                                    ]
+                                );
+
+                                if ((insertResult as any).insertId) {
+                                    hodUserId = (insertResult as any).insertId;
+                                } else {
+                                    const existingUser = await query(
+                                        "SELECT id FROM users WHERE email = ? LIMIT 1",
+                                        [hodInfo.email]
+                                    ) as any[];
+                                    if (existingUser.length > 0) {
+                                        hodUserId = existingUser[0].id;
+                                    }
+                                }
+                                console.log("Created/Updated HOD user with ID:", hodUserId);
+                            }
+                        }
+                    } catch (fetchError) {
+                        console.error("Failed to fetch HOD from external API:", fetchError);
+                    }
+                }
+
+                // Add HOD to hiring team if we have a user ID
+                if (hodUserId) {
+                    await execute(
+                        `INSERT INTO job_hiring_team (job_id, user_id, role) 
+                         VALUES (?, ?, 'HOD')
+                         ON DUPLICATE KEY UPDATE role = 'HOD'`,
+                        [id, hodUserId]
+                    );
+                    console.log("Added HOD to hiring team for job:", id);
+                }
+            } catch (err) {
+                console.error("Error auto-adding HOD on edit:", err);
+            }
+        }
 
         return NextResponse.json({ success: true, message: "Job updated successfully" });
     } catch (error: any) {

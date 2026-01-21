@@ -13,7 +13,7 @@ type Job = {
     department?: string;
     location: string;
     status: string;
-    recruiter?: string;
+    hod_name?: string;
     hiring_manager?: string;
     addedBy?: string;
     new_count?: number;
@@ -33,9 +33,10 @@ type JobRowProps = {
     onEdit?: (id: number) => void;
     onUnpublish?: (id: number) => void;
     onDelete?: (id: number) => void;
+    canDelete?: boolean;
 };
 
-export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: JobRowProps) {
+export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete, canDelete = false }: JobRowProps) {
     const router = useRouter();
     const [menuOpen, setMenuOpen] = useState(false);
     const [isActive, setIsActive] = useState(job.status?.toLowerCase() === 'active' || job.status?.toLowerCase() === 'published');
@@ -46,6 +47,11 @@ export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: 
     };
 
     const handleToggleStatus = async (checked: boolean) => {
+        if (!canDelete && isActive) {
+            toast.error("You don't have permission to change status");
+            return;
+        }
+
         const newStatus = checked ? "active" : "inactive";
         setIsActive(checked); // Optimistic UI update
 
@@ -88,14 +94,15 @@ export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: 
                         checked={isActive}
                         onCheckedChange={handleToggleStatus}
                         className="data-[state=checked]:bg-[#238740]"
+                        disabled={!canDelete && isActive} // Disable switch if can't delete/unpublish
                     />
                     <span className="text-sm text-[#666]">{isActive ? 'Active' : 'Inactive'}</span>
                 </div>
             </div>
 
-            {/* Recruiter */}
+            {/* HOD */}
             <div className="w-[9%] text-sm text-[#555] truncate pr-2">
-                {job.recruiter || job.addedBy || '-'}
+                {job.hod_name || '-'}
             </div>
 
             {/* Hiring Manager */}
@@ -183,7 +190,7 @@ export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: 
                             <Pencil className="h-4 w-4" />
                             Edit job
                         </button>
-                        {isActive ? (
+                        {isActive && canDelete ? ( // Only show if canDelete is true
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -196,17 +203,19 @@ export default function JobRow({ job, onClick, onEdit, onUnpublish, onDelete }: 
                                 Unpublish job
                             </button>
                         ) : null}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setMenuOpen(false);
-                                onDelete?.(job.id);
-                            }}
-                            className="w-full px-4 py-2.5 text-sm text-left text-[#666] hover:bg-[#F5F5F5] flex items-center gap-3"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            Cancel job
-                        </button>
+                        {canDelete && ( // Only show if canDelete is true
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMenuOpen(false);
+                                    onDelete?.(job.id);
+                                }}
+                                className="w-full px-4 py-2.5 text-sm text-left text-[#666] hover:bg-[#F5F5F5] flex items-center gap-3"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                Cancel job
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
